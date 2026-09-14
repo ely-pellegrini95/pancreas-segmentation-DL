@@ -31,22 +31,24 @@ Roth, H., Farag, A., Turkbey, E. B., Lu, L., Liu, J., & Summers, R. M. (2016). D
 The dataset must be preprocessed before training (see `preprocessing/`).
 
 ## Repository Structure
+```
 ├── training/
-│ ├── attention_unet_train.py # Attention U-Net 5-fold training
-│ └── unetr_train.py # UNETR 5-fold training
+│   ├── attention_unet_train.py   # Attention U-Net 5-fold training
+│   └── unetr_train.py            # UNETR 5-fold training
 ├── preprocessing/
-│ └── ... # Preprocessing pipeline scripts
+│   └── ...                       # Preprocessing pipeline scripts
 ├── evaluation/
-│ ├── threshold_analysis.py # Threshold sweep 0.10–0.90
-│ └── threshold_analysis.ipynb
+│   ├── threshold_analysis.py     # Threshold sweep 0.10–0.90
+│   └── threshold_analysis.ipynb
 ├── splits/
-│ ├── fold_1_train.txt # Patient IDs per fold
-│ ├── fold_1_val.txt
-│ ├── ...
-│ └── test.txt # External validation set (N=16)
+│   ├── fold_1_train.txt          # Patient IDs per fold
+│   ├── fold_1_val.txt
+│   ├── ...
+│   └── test.txt                  # Validation set (N=16)
 └── results/
-├── threshold_summary_att_unet.csv
-└── threshold_summary_unetr.csv
+    ├── threshold_summary_att_unet.csv
+    └── threshold_summary_unetr.csv
+```
 
 ## Reproducibility
 

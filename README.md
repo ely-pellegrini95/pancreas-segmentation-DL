@@ -1,99 +1,182 @@
-# pancreas-segmentation-sipaim-2026
-Pancreas CT segmentation using Attention U-Net and UNETR
+# pancreas-segmentation-work-submitted-sipaim-2026
 
-Work:
-**"Effects of Pre-processing and Threshold Calibration on Local versus 
-Global Attention Architectures for Pancreas Parenchyma Segmentation"**  
-Elizabeth Pellegrini, Sebastián Ibarra, Nicole Roldán, Leonel Muñoz,
-Juan-Pablo Laguna, Paola Caprile, Cecilia Besa, Steren Chabert, Rodrigo Salas  
+> 3D pancreas CT segmentation — Attention U-Net vs UNETR, 5-fold cross-validation, NIH Pancreas-CT
+
+![Python 3.10](https://img.shields.io/badge/Python-3.10-blue)
+![PyTorch ≥ 2.0](https://img.shields.io/badge/PyTorch-%E2%89%A5%202.0-orange)
+![MONAI 1.5.2](https://img.shields.io/badge/MONAI-1.5.2-blueviolet)
+
+---
+
+## Work
+
+**Effects of Pre-processing and Threshold Calibration on Local versus Global Attention Architectures for Pancreas Parenchyma Segmentation**
+
+Elizabeth Pellegrini · Sebastián Ibarra · Nicole Roldán · Leonel Muñoz · Juan-Pablo Laguna · Paola Caprile · Cecilia Besa · Steren Chabert · Rodrigo Salas
+
+---
 
 ## Overview
-This repository contains the training scripts, preprocessing pipeline,
-cross-validation splits, threshold analysis, and evaluation results for
-a controlled comparison between **Attention U-Net** and **UNETR** for
-3D pancreas CT segmentation using the NIH Pancreas-CT dataset.
+
+This repository contains training scripts, preprocessing pipeline, cross-validation splits, ensemble evaluation, and results for a controlled comparison between **Attention U-Net** and **UNETR** for 3-D pancreas CT segmentation using the [NIH Pancreas-CT dataset](https://www.cancerimagingarchive.net/collection/pancreas-ct/).
+
+The study examines the effect of preprocessing choices and probability threshold calibration (sweep 0.10–0.90, step 0.05) on segmentation performance, reporting Dice, Jaccard, HD95, and the Mohammadi et al. (2025) under-/over-segmentation indices.
+
+---
 
 ## Requirements
 
-- Python 3.10.12
-- PyTorch 2.12.0
-- MONAI 1.5.2
-- NVIDIA GPU (experiments run on RTX 4080 16GB)
+| Package | Version |
+|---|---|
+| Python | 3.10.12 |
+| PyTorch | ≥ 2.0 |
+| MONAI | 1.5.2 |
+| nibabel | — |
+| pandas · numpy · matplotlib · tqdm · psutil | — |
 
-Install dependencies:
+```bash
 pip install -r requirements.txt
+```
+
+Experiments were run on an NVIDIA GeForce RTX 4080 (16 GB VRAM).
+
+---
 
 ## Dataset
-We used the publicly available **NIH Pancreas-CT dataset**:
-- 80 contrast-enhanced abdominal CT volumes
-- Download: https://www.cancerimagingarchive.net/collection/pancreas-ct/
-Roth, H., Farag, A., Turkbey, E. B., Lu, L., Liu, J., & Summers, R. M. (2016). Data From Pancreas-CT (Version 2) [Data set]. The Cancer Imaging Archive. https://doi.org/10.7937/K9/TCIA.2016.tNB1kqBU.
-The dataset must be preprocessed before training (see `preprocessing/`).
+
+We used the publicly available **NIH Pancreas-CT dataset** (82 contrast-enhanced abdominal CT volumes).  
+Download: [cancerimagingarchive.net](https://www.cancerimagingarchive.net/collection/pancreas-ct/)
+
+> Roth, H., Farag, A., Turkbey, E. B., Lu, L., Liu, J., & Summers, R. M. (2016).  
+> *Data From Pancreas-CT* (Version 2) [Data set]. The Cancer Imaging Archive.  
+> [doi:10.7937/K9/TCIA.2016.tNB1kqBU](https://doi.org/10.7937/K9/TCIA.2016.tNB1kqBU)
+
+The dataset must be preprocessed before training. See `preprocessing/`.
+
+---
 
 ## Repository Structure
+
 ```
+pancreas-segmentation-sipaim-2026/
 ├── training/
-│   ├── attention_unet_train.py   # Attention U-Net 5-fold training
-│   └── unetr_train.py            # UNETR 5-fold training
-├── preprocessing/
-│   └── ...                       # Preprocessing pipeline scripts
+│   ├── attention_unet_train_preliminary.py   # Attention U-Net — ablation (200 ep, Adam)
+│   ├── attention_unet_train.py               # Attention U-Net — final (500 ep, AdamW)
+│   ├── unetr_train_preliminary.py            # UNETR — ablation (200 ep, Adam)
+│   └── unetr_train.py                        # UNETR — final (500 ep, AdamW)
 ├── evaluation/
-│   ├── threshold_analysis.py     # Threshold sweep 0.10–0.90
-│   └── threshold_analysis.ipynb
+│   ├── attention_unet_eval_test_ensemble.py  # Attention U-Net 5-fold ensemble eval
+│   └── unetr_eval_test_ensemble.py           # UNETR 5-fold ensemble eval
+├── preprocessing/
+│   └── ...                                   # Preprocessing pipeline
 ├── splits/
-│   ├── fold_1_train.txt          # Patient IDs per fold
-│   ├── fold_1_val.txt
-│   ├── ...
-│   └── test.txt                  # Validation set (N=16)
-└── results/
-    ├── threshold_summary_att_unet.csv
-    └── threshold_summary_unetr.csv
+│   ├── fold_1_train.txt                      # Patient IDs — fold 1 train (64 cases)
+│   ├── fold_1_val.txt                        # Patient IDs — fold 1 internal val (16 cases)
+│   ├── ...                                   # folds 2–5
+│   └── test.txt                              # Held-out test set (N=16)
+├── results/
+│   ├── test_ensemble_threshold_summary_att_unet.csv
+│   └── test_ensemble_threshold_summary_unetr.csv
+└── README.md
 ```
+
+---
 
 ## Reproducibility
 
-All experiments use fixed random seeds:
+All experiments use fixed random seeds set in `torch`, `numpy`, `random`, and `monai.set_determinism`. Cross-validation patient splits are provided in `splits/`.
 
-| Setting | Value |
+| Seed | Value |
 |---|---|
-| Global seed | 42 |
-| Fold 1 seed | 43 |
-| Fold 2 seed | 44 |
-| Fold 3 seed | 45 |
-| Fold 4 seed | 46 |
-| Fold 5 seed | 47 |
+| Global | 42 |
+| Fold 1 | 43 |
+| Fold 2 | 44 |
+| Fold 3 | 45 |
+| Fold 4 | 46 |
+| Fold 5 | 47 |
 
-Seeds are set in `torch`, `numpy`, `random`, and `monai.set_determinism`.
-Cross-validation patient splits are provided in `splits/`.
+---
 
 ## Training
-python training/attention_unet_train.py
-# UNETR
-python training/unetr_train.py
-Set `DATA_DIR` in each script to point to your preprocessed dataset.
 
-## Threshold Analysis
-python evaluation/threshold_analysis.py
+Set `DATA_DIR` in each script to point to your preprocessed dataset, then run:
+
+### Attention U-Net
+
+```bash
+# Preliminary (ablation — smaller model, 200 epochs)
+python training/attention_unet_train_preliminary.py
+
+# Final
+python training/attention_unet_train.py
+```
+
+### UNETR
+
+```bash
+# Preliminary (ablation — smaller model, 200 epochs)
+python training/unetr_train_preliminary.py
+
+# Final
+python training/unetr_train.py
+```
+
+| Script | Model | Epochs | Optimizer | Scheduler | Dataset |
+|---|---|---|---|---|---|
+| `*_preliminary` | smaller | 200 | Adam lr=1e-3 | none | Dataset |
+| `*_train` | full | 500 | AdamW lr=1e-4 | warmup + cosine | CacheDataset |
+
+---
+
+## Ensemble Evaluation
+
+Each evaluation script loads the 5 best-checkpoint models, averages their softmax probabilities, sweeps thresholds 0.10–0.90, and selects the best threshold by:  
+**max Dice mean → highest Precision → lowest HD95 → highest threshold** (within tolerance 0.01).
+
+```bash
+# Attention U-Net
+python evaluation/attention_unet_eval_test_ensemble.py
+
+# UNETR
+python evaluation/unetr_eval_test_ensemble.py
+```
+
+Outputs (inside `experiments/<name>/test_ensemble_5folds/`):
+
+- `metrics/test_ensemble_threshold_metrics_by_case.csv` — per-case × per-threshold
+- `metrics/test_ensemble_threshold_summary.csv` — aggregated across cases
+- `metrics/test_ensemble_best_threshold.csv` — selected threshold + rationale
+- `metrics/test_ensemble_case_metrics_best_threshold.csv` — per-case at best threshold
+- `metrics/test_ensemble_summary_best_threshold.csv` — overall summary
+- `nifti_masks/` — ensemble probability map + hard mask (NIfTI)
+- `figures_2d/per_patient_per_threshold/` — 5 axial slices × all thresholds
+
+---
 
 ## Main Results
+
+> **Note:** Results below are at a fixed threshold of 0.50.  
+> Calibrated-threshold results (best threshold per model selected on the test set) are reported in the paper and available in `results/`.
+
 | Model | DSC | Jaccard | Precision |
 |---|---|---|---|
 | Attention U-Net | 0.732 ± 0.187 | 0.607 ± 0.216 | 0.892 ± 0.041 |
 | UNETR | 0.632 ± 0.251 | 0.500 ± 0.228 | 0.903 ± 0.065 |
 
-Validation set (N=16, held out test set), threshold = 0.50.
+*Test set, N=16. Ensemble of 5 folds. LCC post-processing applied.*
+
+---
 
 ## Citation
+
 If you use this code, please cite:
+
 ```bibtex
 @inproceedings{pellegrini2026pancreas,
-  title={Effects of Pre-processing and Threshold Calibration on Local 
-         versus Global Attention Architectures for Pancreas Parenchyma Segmentation},
-  author={Pellegrini, Elizabeth and others}
+  title     = {Effects of Pre-processing and Threshold Calibration on Local
+               versus Global Attention Architectures for Pancreas Parenchyma Segmentation},
+  author    = {Pellegrini, Elizabeth and Ibarra, Sebasti{\'a}n and Rold{\'a}n, Nicole
+               and Mu{\~n}oz, Leonel and Laguna, Juan-Pablo and Caprile, Paola
+               and Besa, Cecilia and Chabert, Steren and Salas, Rodrigo},
 }
 ```
-
-
-
-
-

@@ -7,11 +7,8 @@ nibabel==5.4.2
 matplotlib==3.10.8
 scipy==1.17.1
 scikit-image==0.26.0
-opencv-python==4.13.0.92
 pydicom==3.0.2
 SimpleITK==2.5.3
 einops==0.8.2
 psutil==7.2.2
 tqdm
-ipywidgets==8.1.8
-jupyter==1.1.1

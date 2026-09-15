@@ -18,9 +18,9 @@ Elizabeth Pellegrini · Sebastián Ibarra · Nicole Roldán · Leonel Muñoz · 
 
 ## Overview
 
-This repository contains training scripts, preprocessing pipeline, cross-validation splits, ensemble evaluation, and results for a controlled comparison between **Attention U-Net** and **UNETR** for 3-D pancreas CT segmentation using the [NIH Pancreas-CT dataset](https://www.cancerimagingarchive.net/collection/pancreas-ct/).
+This repository contains training scripts, preprocessing pipeline, cross-validation splits, ensemble evaluation, and results for a comparison between **Attention U-Net** and **UNETR** for 3-D pancreas CT segmentation using the [NIH Pancreas-CT dataset](https://www.cancerimagingarchive.net/collection/pancreas-ct/).
 
-The study examines the effect of preprocessing choices and probability threshold calibration (sweep 0.10–0.90, step 0.05) on segmentation performance, reporting Dice, Jaccard, HD95, and the Mohammadi et al. (2025) under-/over-segmentation indices.
+The study examines the effect of preprocessing choices and probability threshold calibration (sweep 0.10–0.90, step 0.05) on segmentation performance, reporting Dice, Jaccard and the Mohammadi et al. (2025) under-/over-segmentation indices.
 
 ---
 
@@ -51,7 +51,7 @@ Download: [cancerimagingarchive.net](https://www.cancerimagingarchive.net/collec
 > *Data From Pancreas-CT* (Version 2) [Data set]. The Cancer Imaging Archive.  
 > [doi:10.7937/K9/TCIA.2016.tNB1kqBU](https://doi.org/10.7937/K9/TCIA.2016.tNB1kqBU)
 
-The dataset must be preprocessed before training. See `preprocessing/`.
+This repository assumes the dataset has been preprocessed. See preprocessing/.
 
 ---
 

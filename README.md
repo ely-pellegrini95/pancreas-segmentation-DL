@@ -57,7 +57,7 @@ This repository assumes the dataset has been preprocessed. See preprocessing/.
 ## Repository Structure
 
 ```
-pancreas-segmentation-sipaim-2026/
+pancreas-segmentation-DL/
 ├── training/
 │   ├── attention_unet_train_preliminary.py   # Attention U-Net — ablation (200 ep, Adam)
 │   ├── attention_unet_train.py               # Attention U-Net — final (500 ep, AdamW)

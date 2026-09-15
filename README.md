@@ -1,5 +1,4 @@
-# pancreas-segmentation-work-submitted-sipaim-2026
-
+# pancreas-segmentation-AttentionUnet-UNETR
 > 3D pancreas CT segmentation — Attention U-Net vs UNETR, 5-fold cross-validation, NIH Pancreas-CT
 
 ![Python 3.10](https://img.shields.io/badge/Python-3.10-blue)

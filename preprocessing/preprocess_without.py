@@ -4,11 +4,8 @@ Preprocessing pipeline WITHOUT full preprocessing (baseline).
 Steps applied to each CT volume:
   1. Read DICOM slices and convert to Hounsfield Units (HU)
   2. Load NIfTI segmentation mask
-  3. Generate body mask and remove scanner table
-  4. Crop volume to body bounding box (+ margin)
-  5. Pad to shape divisible by 8
-  6. Normalize to [0, 1]   ← no clipping, no CLAHE
-  9. Save CT and mask as NIfTI (.nii.gz)
+  3. Normalize to [0, 1]   ← no body crop, no pad, no clipping, no CLAHE
+  4. Save CT and mask as NIfTI (.nii.gz)
 
 Output filenames follow the convention: PANCREAS_XXXX.nii.gz
 """
@@ -20,7 +17,6 @@ from pathlib import Path
 import pydicom
 import nibabel as nib
 import pandas as pd
-from scipy.ndimage import binary_fill_holes, binary_opening, binary_closing, label
 
 # ===========================================================
 # 0) Parameters — adjust paths before running
@@ -29,15 +25,6 @@ from scipy.ndimage import binary_fill_holes, binary_opening, binary_closing, lab
 DICOM_ROOT  = Path(r"path/to/pancreas_ct_dcm")      # one subfolder per patient
 MASK_ROOT   = Path(r"path/to/pancreas_ct_nifti")    # .nii or .nii.gz masks
 OUTPUT_ROOT = Path(r"path/to/output_without_preprocessing")
-
-# Body mask
-BODY_THRESHOLD_HU      = -500
-BODY_FILL_HU           = -1000.0
-BODY_MASK_MORPH_RADIUS = 3
-
-# Crop
-CROP_MARGIN  = (4, 20, 20)   # (z, y, x) voxels
-DIVISIBLE_BY = 8 # output shape must be divisible by this for the network
 
 # ===========================================================
 # 1) General utilities
@@ -161,64 +148,7 @@ def load_mask_zyx(mask_path):
     return (np.transpose(data, (2, 1, 0)) > 0).astype(np.uint8)
 
 # ===========================================================
-# 4) Body mask and crop
-# ===========================================================
-
-def largest_connected_component_3d(mask):
-    lbl, n = label(mask)
-    if n == 0:
-        return mask.astype(np.uint8)
-    counts    = np.bincount(lbl.ravel())
-    counts[0] = 0
-    return (lbl == np.argmax(counts)).astype(np.uint8)
-
-def create_body_mask(volume_hu, threshold_hu=-500, morph_radius=3):
-    mask   = volume_hu > threshold_hu
-    filled = np.zeros_like(mask, dtype=bool)
-    kernel = np.ones((morph_radius, morph_radius), dtype=bool)
-    clean  = np.zeros_like(mask, dtype=bool)
-    for z in range(mask.shape[0]):
-        filled[z] = binary_fill_holes(mask[z])
-    for z in range(filled.shape[0]):
-        m        = binary_opening(filled[z], structure=kernel)
-        m        = binary_closing(m,          structure=kernel)
-        clean[z] = m
-    return largest_connected_component_3d(clean).astype(np.uint8)
-
-def apply_body_mask(volume_hu, body_mask, fill_value=-1000):
-    out = volume_hu.copy()
-    out[body_mask == 0] = fill_value
-    return out.astype(np.float32)
-
-def compute_body_bbox(volume_hu, threshold_hu=-500, margin=(4, 20, 20)):
-    body   = volume_hu > threshold_hu
-    coords = np.argwhere(body)
-    if len(coords) == 0:
-        return (0, volume_hu.shape[0], 0, volume_hu.shape[1], 0, volume_hu.shape[2])
-    zmin, ymin, xmin = coords.min(axis=0)
-    zmax, ymax, xmax = coords.max(axis=0)
-    return (
-        max(0, zmin - margin[0]),  min(volume_hu.shape[0], zmax + margin[0] + 1),
-        max(0, ymin - margin[1]),  min(volume_hu.shape[1], ymax + margin[1] + 1),
-        max(0, xmin - margin[2]),  min(volume_hu.shape[2], xmax + margin[2] + 1),
-    )
-
-def crop_volume(volume, bbox):
-    z0, z1, y0, y1, x0, x1 = bbox
-    return volume[z0:z1, y0:y1, x0:x1]
-
-def pad_to_divisible_by_n(volume, n=8, fill_value=0):
-    z, y, x   = volume.shape
-    pad_width = ((0, (n - z % n) % n), (0, (n - y % n) % n), (0, (n - x % n) % n))
-    return np.pad(volume, pad_width, mode="constant", constant_values=fill_value), pad_width
-
-def pad_mask_to_divisible_by_n(mask, n=8):
-    if mask is None:
-        return None, None
-    return pad_to_divisible_by_n(mask, n=n, fill_value=0)
-
-# ===========================================================
-# 5) Normalization only (no clipping, no CLAHE)
+# 4) Normalization only (no clipping, no CLAHE)
 # ===========================================================
 
 def normalize_01(volume):
@@ -229,14 +159,15 @@ def normalize_01(volume):
     return ((volume - vmin) / (vmax - vmin)).astype(np.float32), (vmin, vmax)
 
 # ===========================================================
-# 6) Preprocessing pipeline WITHOUT CLAHE
+# 5) Preprocessing pipeline WITHOUT body crop / pad / CLAHE
 # ===========================================================
 
 def preprocess_case_without(case_dir, mask_path):
     """
-    Baseline preprocessing pipeline:
-    DICOM -> HU -> body mask/crop -> normalize [0,1]   (no clipping, no CLAHE)
-    Returns the final CT array (float32, [0,1]) and the cropped binary mask.
+    Minimal (baseline) preprocessing pipeline:
+    DICOM → HU → normalize [0, 1]
+    No body mask, no crop, no padding, no intensity clipping, no CLAHE.
+    Returns the normalised CT array (float32, [0,1]) and the binary mask.
     """
     volume, spacing, meta = build_sorted_volume(case_dir)
 
@@ -250,33 +181,13 @@ def preprocess_case_without(case_dir, mask_path):
         print(f"  [WARN] Mask shape {mask_zyx.shape} != CT shape {volume.shape}. Mask skipped.")
         mask_zyx = None
 
-    # No reorientation (homogeneous NIH dataset)
-    reoriented      = volume.copy()
-    mask_reoriented = (mask_zyx.copy() > 0).astype(np.uint8) if mask_zyx is not None else None
+    # Normalize to [0, 1] — no clipping, no body crop, no CLAHE
+    norm_01, _ = normalize_01(volume.astype(np.float32))
 
-    # Body mask and table removal
-    body_mask = create_body_mask(reoriented, threshold_hu=BODY_THRESHOLD_HU,
-                                 morph_radius=BODY_MASK_MORPH_RADIUS)
-    body_only = apply_body_mask(reoriented, body_mask, fill_value=BODY_FILL_HU)
-
-    # Crop
-    bbox              = compute_body_bbox(body_only, threshold_hu=BODY_THRESHOLD_HU, margin=CROP_MARGIN)
-    cropped           = crop_volume(body_only, bbox)
-    body_mask_cropped = crop_volume(body_mask, bbox)
-    mask_cropped      = crop_volume(mask_reoriented, bbox) if mask_reoriented is not None else None
-
-    # Pad to divisible by 8
-    cropped_div8, _   = pad_to_divisible_by_n(cropped, n=DIVISIBLE_BY, fill_value=BODY_FILL_HU)
-    body_mask_div8, _ = pad_mask_to_divisible_by_n(body_mask_cropped, n=DIVISIBLE_BY)
-    mask_div8, _      = pad_mask_to_divisible_by_n(mask_cropped, n=DIVISIBLE_BY)
-
-    # Normalize to [0, 1] — no clipping, no CLAHE
-    norm_01, _ = normalize_01(cropped_div8.astype(np.float32))
-
-    return norm_01, mask_div8, spacing, bbox
+    return norm_01, mask_zyx, spacing
 
 # ===========================================================
-# 7) Save as NIfTI
+# 6) Save as NIfTI
 # ===========================================================
 
 def save_zyx_as_nifti(volume_zyx, out_path, dtype=np.float32):
@@ -284,7 +195,7 @@ def save_zyx_as_nifti(volume_zyx, out_path, dtype=np.float32):
     nib.save(nib.Nifti1Image(vol_xyz, np.eye(4, dtype=np.float32)), str(out_path))
 
 # ===========================================================
-# 8) Batch processing
+# 7) Batch processing
 # ===========================================================
 
 def run_batch():
@@ -312,7 +223,7 @@ def run_batch():
             continue
 
         try:
-            ct_norm, mask_final, spacing, bbox = preprocess_case_without(case_dir, mask_path)
+            ct_norm, mask_final, spacing = preprocess_case_without(case_dir, mask_path)
 
             if mask_final is None:
                 print("  [SKIP] Final mask is None.")

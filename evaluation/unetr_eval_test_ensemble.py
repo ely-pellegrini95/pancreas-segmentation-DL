@@ -6,21 +6,19 @@ Ensemble evaluation of a 5-fold UNETR on the NIH Pancreas-CT test set.
 Inference  : 5-fold softmax probability averaging (sliding-window, SW_OVERLAP=0.75)
 Post-proc  : Largest Connected Component (LCC) at each threshold
 Thresholds : 0.10 – 0.90 (step 0.05)  →  17 values
-Best thr   : max Dice mean → highest Precision mean → lowest HD95 mean
-             → highest threshold  (within DICE_TOLERANCE = 0.01)
 Metrics    : Dice, Jaccard, HD95, Sensitivity, Specificity, Precision, Accuracy,
              TP, FP, FN, TN, US, OS, US-OS  (Mohammadi et al. 2025)
+
+No threshold is selected automatically.  Inspect the summary CSV
+(test_ensemble_threshold_summary.csv) to choose the threshold you want to
+report.
 
 Outputs (inside ENSEMBLE_DIR):
   metrics/
     test_ensemble_threshold_metrics_by_case.csv
     test_ensemble_threshold_summary.csv
-    test_ensemble_best_threshold.csv
-    test_ensemble_case_metrics_best_threshold.csv
-    test_ensemble_summary_best_threshold.csv
   nifti_masks/
     <case_id>_unetr_ensemble_probability.nii.gz
-    <case_id>_unetr_ensemble_hard_mask_thr_<T>_lcc.nii.gz
   figures_2d/per_patient_per_threshold/<case_id>/
     <case_id>_thr_<T>_5axial_dice_<D>.png  (5 axial slices, all thresholds)
   logs/
@@ -88,23 +86,22 @@ SW_BATCH_SIZE  = 2
 SW_OVERLAP     = 0.75
 USE_AMP        = False  # overridden in main() based on CUDA availability
 
-THRESHOLDS            = np.round(np.arange(0.10, 0.91, 0.05), 2)
-USE_LARGEST_COMPONENT = True
-DICE_TOLERANCE        = 0.01
+# Threshold sweep — all thresholds evaluated; no automatic selection
+THRESHOLDS = np.round(np.arange(0.10, 0.91, 0.05), 2)
 
-SAVE_NIFTI_MASKS  = True
-GENERATE_2D_FIGURES = True
+USE_LARGEST_COMPONENT = True
+SAVE_NIFTI_PROB       = True   # save ensemble probability map per case
+GENERATE_2D_FIGURES   = True
 
 # ============================================================
-# LOGGING  (no sys.stdout/stderr redirection)
+# LOGGING
 # ============================================================
 _LOG_FILE = None
 
 
 def setup_logging():
-    """Open a timestamped log file and return its path."""
     global _LOG_FILE
-    log_dir  = ENSEMBLE_DIR / "logs"
+    log_dir   = ENSEMBLE_DIR / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_path  = log_dir / f"unetr_eval_run_{timestamp}.log"
@@ -113,7 +110,6 @@ def setup_logging():
 
 
 def log(*args, **kwargs):
-    """Print to console and write to the log file simultaneously."""
     print(*args, **kwargs)
     if _LOG_FILE is not None and not _LOG_FILE.closed:
         sep = kwargs.get("sep", " ")
@@ -163,7 +159,6 @@ def binarize_label(x):
 
 
 def load_split(split_file):
-    """Return a list of {image, label} dicts from a text file of case IDs."""
     with open(split_file, "r") as f:
         case_ids = [line.strip() for line in f if line.strip()]
     return [
@@ -201,7 +196,6 @@ def create_test_loader(files):
 # MODEL
 # ============================================================
 def create_unetr_model():
-    """Instantiate the UNETR model on CPU (moved to GPU per inference call)."""
     return UNETR(
         in_channels=1,
         out_channels=2,
@@ -219,11 +213,9 @@ def create_unetr_model():
 
 
 def load_unetr_model_for_fold(fold):
-    """Load the best checkpoint for one fold into a CPU model."""
     model_path = EXPERIMENT_DIR / f"fold_{fold}" / "best_metric_model.pth"
     if not model_path.exists():
         raise FileNotFoundError(f"Model not found for fold {fold}: {model_path}")
-
     model = create_unetr_model()
     state_dict = torch.load(model_path, map_location="cpu", weights_only=True)
     missing, unexpected = model.load_state_dict(state_dict, strict=False)
@@ -240,18 +232,11 @@ def load_unetr_model_for_fold(fold):
 # ENSEMBLE INFERENCE
 # ============================================================
 def ensemble_predict(data, device, models):
-    """
-    Run each fold model sequentially (CPU → GPU → CPU) and average softmax
-    probabilities.  Returns:
-      ct            : (H, W, D) float32 CT array
-      gt_mask       : (H, W, D) uint8 ground-truth mask
-      prob_pancreas : (H, W, D) float32 ensemble probability for the pancreas class
-    """
+    """Mean softmax probability across all fold models."""
     inputs = data["image"].to(device, non_blocking=True)
     labels = data["label"].to(device, non_blocking=True)
 
     prob_sum_cpu = None
-
     with torch.no_grad():
         for model in models:
             model.to(device)
@@ -265,10 +250,8 @@ def ensemble_predict(data, device, models):
                     overlap=SW_OVERLAP,
                 )
                 probs = torch.softmax(logits, dim=1)
-
-            probs_cpu = probs.detach().cpu()
+            probs_cpu    = probs.detach().cpu()
             prob_sum_cpu = probs_cpu if prob_sum_cpu is None else prob_sum_cpu + probs_cpu
-
             del logits, probs
             model.to("cpu")
             if torch.cuda.is_available():
@@ -276,11 +259,9 @@ def ensemble_predict(data, device, models):
 
     prob_mean     = prob_sum_cpu / len(models)
     prob_pancreas = prob_mean[0, 1].numpy().astype(np.float32)
-
-    label_onehot = AsDiscrete(to_onehot=2)(labels[0].detach().cpu())
-    gt_mask      = label_onehot[1].detach().cpu().numpy().astype(np.uint8)
-    ct           = inputs[0, 0].detach().cpu().numpy().astype(np.float32)
-
+    label_onehot  = AsDiscrete(to_onehot=2)(labels[0].detach().cpu())
+    gt_mask       = label_onehot[1].detach().cpu().numpy().astype(np.uint8)
+    ct            = inputs[0, 0].detach().cpu().numpy().astype(np.float32)
     return ct, gt_mask, prob_pancreas
 
 
@@ -291,14 +272,14 @@ def compute_binary_confusion_metrics(pred_mask, label_mask):
     """
     Standard segmentation metrics + Mohammadi et al. (2025) US / OS / US-OS.
 
-    US    = FN / (TP + FN)       — under-segmentation
-    OS    = FP / (TP + FN)       — over-segmentation
-    US-OS = (FP + FN) / (TP + FN)  — combined error
+    US    = FN / (TP + FN)          — Under-Segmentation
+    OS    = FP / (TP + FN)          — Over-Segmentation
+    US-OS = (FP + FN) / (TP + FN)  — Combined error
     """
     pred  = pred_mask.astype(bool)
     label = label_mask.astype(bool)
-    tp = np.logical_and(pred, label).sum()
-    fp = np.logical_and(pred, ~label).sum()
+    tp = np.logical_and(pred,  label).sum()
+    fp = np.logical_and(pred,  ~label).sum()
     fn = np.logical_and(~pred, label).sum()
     tn = np.logical_and(~pred, ~label).sum()
     eps = 1e-8
@@ -309,13 +290,10 @@ def compute_binary_confusion_metrics(pred_mask, label_mask):
         "specificity": tn / (tn + fp + eps),
         "precision":   tp / (tp + fp + eps),
         "accuracy":    (tp + tn) / (tp + fp + fn + tn + eps),
-        "tp":          int(tp),
-        "fp":          int(fp),
-        "fn":          int(fn),
-        "tn":          int(tn),
-        "us":          float(fn / (tp + fn + eps)),
-        "os":          float(fp / (tp + fn + eps)),
-        "us_os":       float((fp + fn) / (tp + fn + eps)),
+        "tp": int(tp), "fp": int(fp), "fn": int(fn), "tn": int(tn),
+        "us":    float(fn / (tp + fn + eps)),
+        "os":    float(fp / (tp + fn + eps)),
+        "us_os": float((fp + fn) / (tp + fn + eps)),
     }
 
 
@@ -334,7 +312,6 @@ def compute_hd95(pred_mask, gt_mask):
 
 
 def make_pred_mask(prob_pancreas, threshold):
-    """Apply threshold and (optionally) keep only the largest connected component."""
     pred_mask = (prob_pancreas >= threshold).astype(np.uint8)
     if USE_LARGEST_COMPONENT and pred_mask.max() > 0:
         pred_onehot = torch.from_numpy(
@@ -352,31 +329,29 @@ def evaluate_all_thresholds(prob_pancreas, gt_mask, case_id):
     rows = []
     for thr in THRESHOLDS:
         pred_mask = make_pred_mask(prob_pancreas, thr)
-        metrics   = compute_binary_confusion_metrics(pred_mask, gt_mask)
+        m         = compute_binary_confusion_metrics(pred_mask, gt_mask)
         hd95      = compute_hd95(pred_mask, gt_mask)
-        fpr       = metrics["fp"] / (metrics["fp"] + metrics["tn"] + 1e-8)
-
+        fpr       = m["fp"] / (m["fp"] + m["tn"] + 1e-8)
         rows.append({
-            "case_id":       case_id,
-            "dataset":       "test",
-            "threshold":     float(thr),
+            "case_id":        case_id,
+            "threshold":      float(thr),
             "postprocessing": "largest_connected_component" if USE_LARGEST_COMPONENT else "none",
-            "dice":          metrics["dice"],
-            "jaccard":       metrics["jaccard"],
-            "hd95":          hd95,
-            "sensitivity":   metrics["sensitivity"],
-            "specificity":   metrics["specificity"],
-            "precision":     metrics["precision"],
-            "accuracy":      metrics["accuracy"],
-            "fpr":           fpr,
-            "tpr":           metrics["sensitivity"],
-            "tp":            metrics["tp"],
-            "fp":            metrics["fp"],
-            "fn":            metrics["fn"],
-            "tn":            metrics["tn"],
-            "us":            metrics["us"],
-            "os":            metrics["os"],
-            "us_os":         metrics["us_os"],
+            "dice":           m["dice"],
+            "jaccard":        m["jaccard"],
+            "hd95":           hd95,
+            "sensitivity":    m["sensitivity"],
+            "specificity":    m["specificity"],
+            "precision":      m["precision"],
+            "accuracy":       m["accuracy"],
+            "fpr":            fpr,
+            "tpr":            m["sensitivity"],
+            "tp":             m["tp"],
+            "fp":             m["fp"],
+            "fn":             m["fn"],
+            "tn":             m["tn"],
+            "us":             m["us"],
+            "os":             m["os"],
+            "us_os":          m["us_os"],
             "prob_pancreas_mean": float(prob_pancreas.mean()),
             "prob_pancreas_max":  float(prob_pancreas.max()),
             "prob_pancreas_p95":  float(np.percentile(prob_pancreas, 95)),
@@ -384,40 +359,8 @@ def evaluate_all_thresholds(prob_pancreas, gt_mask, case_id):
     return rows
 
 
-def select_best_threshold(threshold_summary_df):
-    """
-    Best threshold selection rule:
-      1. Maximum Dice mean
-      2. Within DICE_TOLERANCE: highest Precision mean
-      3. Tie-break: lowest HD95 mean → highest threshold value
-    """
-    max_dice   = threshold_summary_df["dice_mean"].max()
-    candidates = threshold_summary_df[
-        threshold_summary_df["dice_mean"] >= (max_dice - DICE_TOLERANCE)
-    ].copy()
-    candidates = candidates.sort_values(
-        by=["precision_mean", "hd95_mean", "threshold"],
-        ascending=[False, True, False],
-    )
-    best          = candidates.iloc[0]
-    best_threshold = float(best["threshold"])
-
-    log("=" * 80)
-    log("BEST THRESHOLD SELECTION")
-    log("=" * 80)
-    log(f"  Max Dice observed          : {max_dice:.4f}")
-    log(f"  Dice tolerance             : {DICE_TOLERANCE:.4f}")
-    log(f"  Best threshold selected    : {best_threshold:.2f}")
-    log(f"  Dice mean at best thr      : {best['dice_mean']:.4f}")
-    log(f"  Precision mean at best thr : {best['precision_mean']:.4f}")
-    log(f"  Sensitivity mean at best thr: {best['sensitivity_mean']:.4f}")
-    log(f"  HD95 mean at best thr      : {best['hd95_mean']:.4f}")
-    log("=" * 80)
-    return best_threshold, best
-
-
 # ============================================================
-# 2-D VISUALISATION  (5 axial slices × all thresholds)
+# 2-D VISUALISATION
 # ============================================================
 def _orient(img2d):
     return np.flipud(np.rot90(img2d, k=1))
@@ -438,9 +381,9 @@ def _overlay_mask(ct_slice, mask_slice, color=(1, 0, 0), alpha=0.35):
 
 
 def _overlay_prob(ct_slice, prob_slice, cmap_name="inferno", alpha=0.55):
-    rgb      = np.stack([_norm(ct_slice)] * 3, axis=-1)
-    prob     = np.clip(prob_slice.astype(np.float32), 0, 1)
-    heat_rgb = cm.get_cmap(cmap_name)(prob)[..., :3]
+    rgb       = np.stack([_norm(ct_slice)] * 3, axis=-1)
+    prob      = np.clip(prob_slice.astype(np.float32), 0, 1)
+    heat_rgb  = cm.get_cmap(cmap_name)(prob)[..., :3]
     alpha_map = alpha * prob[..., None]
     return np.clip((1 - alpha_map) * rgb + alpha_map * heat_rgb, 0, 1)
 
@@ -454,9 +397,8 @@ def _overlay_pred_and_prob(ct_slice, pred_slice, prob_slice):
 
 
 def _select_5_axial_slices(gt_mask, pred_mask):
-    """Choose the 5 axial slices with the largest pancreas area (GT ∪ prediction)."""
-    union  = np.logical_or(gt_mask > 0, pred_mask > 0)
-    z_area = union.sum(axis=(0, 1))
+    union   = np.logical_or(gt_mask > 0, pred_mask > 0)
+    z_area  = union.sum(axis=(0, 1))
     nonzero = np.where(z_area > 0)[0]
     if len(nonzero) == 0:
         return [gt_mask.shape[2] // 2]
@@ -468,24 +410,14 @@ def _select_5_axial_slices(gt_mask, pred_mask):
 
 def save_5_axial_slices_figure(ct, gt_mask, pred_mask, prob_mask,
                                 case_id, threshold, dice_value, save_path):
-    """
-    5-row × 5-col figure for one case at one threshold.
-    Columns: CT | CT+GT | CT+prob | CT+pred | pred+prob
-    """
-    z_slices = _select_5_axial_slices(gt_mask, pred_mask)
-    nrows    = len(z_slices)
-
-    fig, axes = plt.subplots(nrows=nrows, ncols=5, figsize=(20, 4 * nrows))
-    if nrows == 1:
+    z_slices  = _select_5_axial_slices(gt_mask, pred_mask)
+    fig, axes = plt.subplots(nrows=len(z_slices), ncols=5,
+                             figsize=(20, 4 * len(z_slices)))
+    if len(z_slices) == 1:
         axes = np.expand_dims(axes, axis=0)
 
-    col_titles = [
-        "CT",
-        "CT + ground truth",
-        "CT + ensemble probability",
-        "CT + prediction",
-        "Prediction + probability",
-    ]
+    col_titles = ["CT", "CT + Ground Truth", "CT + Ensemble Probability",
+                  "CT + Prediction", "Prediction + Probability"]
     for col, title in enumerate(col_titles):
         axes[0, col].set_title(title, fontsize=12, fontweight="bold")
 
@@ -494,12 +426,11 @@ def save_5_axial_slices_figure(ct, gt_mask, pred_mask, prob_mask,
         gt_s   = _orient(gt_mask[:, :, z])
         pred_s = _orient(pred_mask[:, :, z])
         prob_s = _orient(prob_mask[:, :, z])
-
         axes[row, 0].imshow(_norm(ct_s), cmap="gray")
         axes[row, 0].set_ylabel(f"Axial z={z}", fontsize=10)
-        axes[row, 1].imshow(_overlay_mask(ct_s, gt_s,   color=(1, 0, 0),      alpha=0.35))
-        axes[row, 2].imshow(_overlay_prob(ct_s, prob_s, cmap_name="inferno",  alpha=0.60))
-        axes[row, 3].imshow(_overlay_mask(ct_s, pred_s, color=(0, 0.45, 1.0), alpha=0.45))
+        axes[row, 1].imshow(_overlay_mask(ct_s, gt_s,   color=(1, 0, 0),    alpha=0.35))
+        axes[row, 2].imshow(_overlay_prob(ct_s, prob_s, cmap_name="inferno", alpha=0.60))
+        axes[row, 3].imshow(_overlay_mask(ct_s, pred_s, color=(0, 0.45, 1),  alpha=0.45))
         axes[row, 4].imshow(_overlay_pred_and_prob(ct_s, pred_s, prob_s))
         for col in range(5):
             axes[row, col].axis("off")
@@ -528,12 +459,16 @@ def save_nifti(array, reference_path, save_path, dtype=np.float32):
 # MAIN EVALUATION
 # ============================================================
 def evaluate_test_ensemble(device):
+    """
+    Run the full test-set ensemble evaluation across all thresholds.
+    No threshold is selected automatically — inspect the summary CSV
+    to choose the threshold you want to report.
+    """
     ENSEMBLE_DIR.mkdir(parents=True, exist_ok=True)
-    metrics_dir        = ENSEMBLE_DIR / "metrics"
-    nifti_dir          = ENSEMBLE_DIR / "nifti_masks"
-    fig2d_per_pat_dir  = ENSEMBLE_DIR / "figures_2d" / "per_patient_per_threshold"
-
-    for d in [metrics_dir, nifti_dir, fig2d_per_pat_dir]:
+    metrics_dir      = ENSEMBLE_DIR / "metrics"
+    nifti_dir        = ENSEMBLE_DIR / "nifti_masks"
+    fig2d_per_pt_dir = ENSEMBLE_DIR / "figures_2d" / "per_patient_per_threshold"
+    for d in [metrics_dir, nifti_dir, fig2d_per_pt_dir]:
         d.mkdir(parents=True, exist_ok=True)
 
     test_files = load_split(DATA_DIR / "splits" / "test.txt")
@@ -544,207 +479,95 @@ def evaluate_test_ensemble(device):
     log("Loading 5 UNETR fold models into CPU ...")
     models = [load_unetr_model_for_fold(fold) for fold in FOLDS_ENSEMBLE]
 
-    # ----------------------------------------------------------
-    # STEP 1: ensemble inference + threshold sweep
-    # ----------------------------------------------------------
+    threshold_rows = []
+
     log("=" * 80)
-    log("STEP 1 — Ensemble inference and full threshold sweep")
+    log("Ensemble inference + threshold sweep for all cases")
     log("=" * 80)
 
-    case_cache      = []   # store (case_id, ct, gt_mask, prob_pancreas, image_path)
-    threshold_rows  = []
-
-    for idx, data in enumerate(tqdm(test_loader, desc="UNETR ensemble inference")):
+    for idx, data in enumerate(tqdm(test_loader, desc="UNETR ensemble")):
         case_id = Path(test_files[idx]["image"]).stem.replace(".nii", "")
-        log(f"  Processing: {case_id}")
+        log(f"\n{'=' * 80}")
+        log(f"Processing: {case_id}")
 
         ct, gt_mask, prob_pancreas = ensemble_predict(data, device, models)
 
-        case_cache.append({
-            "case_id":    case_id,
-            "ct":         ct,
-            "gt_mask":    gt_mask,
-            "prob":       prob_pancreas,
-            "image_path": test_files[idx]["image"],
-        })
+        # Evaluate all thresholds
+        case_rows = evaluate_all_thresholds(prob_pancreas, gt_mask, case_id)
+        threshold_rows.extend(case_rows)
 
-        threshold_rows.extend(evaluate_all_thresholds(prob_pancreas, gt_mask, case_id))
+        # Print Dice at each threshold for quick inspection
+        log(f"  {'Thr':>5}  {'Dice':>6}  {'Prec':>6}  {'Sens':>6}  {'US':>6}  {'OS':>6}")
+        for r in case_rows:
+            log(f"  {r['threshold']:>5.2f}  {r['dice']:>6.4f}  {r['precision']:>6.4f}"
+                f"  {r['sensitivity']:>6.4f}  {r['us']:>6.4f}  {r['os']:>6.4f}")
 
-    # Save per-case × per-threshold CSV
-    df_thr_cases = pd.DataFrame(threshold_rows)
-    df_thr_cases.to_csv(
-        metrics_dir / "test_ensemble_threshold_metrics_by_case.csv", index=False
-    )
-
-    # Threshold summary (aggregated across cases)
-    threshold_summary = (
-        df_thr_cases.groupby("threshold").agg(
-            n_cases         =("case_id",     "count"),
-            dice_mean       =("dice",        "mean"),  dice_std       =("dice",        "std"),
-            jaccard_mean    =("jaccard",     "mean"),  jaccard_std    =("jaccard",     "std"),
-            hd95_mean       =("hd95",        "mean"),  hd95_std       =("hd95",        "std"),
-            sensitivity_mean=("sensitivity", "mean"),  sensitivity_std=("sensitivity", "std"),
-            specificity_mean=("specificity", "mean"),  specificity_std=("specificity", "std"),
-            precision_mean  =("precision",   "mean"),  precision_std  =("precision",   "std"),
-            accuracy_mean   =("accuracy",    "mean"),  accuracy_std   =("accuracy",    "std"),
-            fpr_mean        =("fpr",         "mean"),  fpr_std        =("fpr",         "std"),
-            tpr_mean        =("tpr",         "mean"),  tpr_std        =("tpr",         "std"),
-            us_mean         =("us",          "mean"),  us_std         =("us",          "std"),
-            os_mean         =("os",          "mean"),  os_std         =("os",          "std"),
-            us_os_mean      =("us_os",       "mean"),  us_os_std      =("us_os",       "std"),
-        ).reset_index()
-    )
-    threshold_summary.to_csv(
-        metrics_dir / "test_ensemble_threshold_summary.csv", index=False
-    )
-
-    best_threshold, best_row = select_best_threshold(threshold_summary)
-
-    best_thr_df = pd.DataFrame([best_row.to_dict()])
-    best_thr_df["selection_rule"] = (
-        "max dice_mean; within DICE_TOLERANCE choose highest precision_mean; "
-        "then lowest hd95_mean; then highest threshold"
-    )
-    best_thr_df["dice_tolerance"] = DICE_TOLERANCE
-    best_thr_df.to_csv(metrics_dir / "test_ensemble_best_threshold.csv", index=False)
-
-    # ----------------------------------------------------------
-    # STEP 2: per-case metrics at best threshold + 2D figures
-    # ----------------------------------------------------------
-    log("=" * 80)
-    log(f"STEP 2 — Per-case metrics and figures at best threshold ({best_threshold:.2f})")
-    log("=" * 80)
-
-    final_rows = []
-
-    for case in tqdm(case_cache, desc="Per-case evaluation"):
-        case_id      = case["case_id"]
-        ct           = case["ct"]
-        gt_mask      = case["gt_mask"]
-        prob         = case["prob"]
-        image_path   = case["image_path"]
-
-        pred_best = make_pred_mask(prob, best_threshold)
-        m         = compute_binary_confusion_metrics(pred_best, gt_mask)
-        hd95      = compute_hd95(pred_best, gt_mask)
-
-        final_rows.append({
-            "case_id":             case_id,
-            "dataset":             "test",
-            "prob_threshold":      best_threshold,
-            "postprocessing":      "largest_connected_component" if USE_LARGEST_COMPONENT else "none",
-            "dice":                m["dice"],
-            "jaccard":             m["jaccard"],
-            "hd95":                hd95,
-            "sensitivity":         m["sensitivity"],
-            "specificity":         m["specificity"],
-            "precision":           m["precision"],
-            "accuracy":            m["accuracy"],
-            "tp":                  m["tp"],
-            "fp":                  m["fp"],
-            "fn":                  m["fn"],
-            "tn":                  m["tn"],
-            "us":                  m["us"],
-            "os":                  m["os"],
-            "us_os":               m["us_os"],
-            "prob_pancreas_mean":  float(prob.mean()),
-            "prob_pancreas_max":   float(prob.max()),
-            "prob_pancreas_p95":   float(np.percentile(prob, 95)),
-        })
-
-        log(
-            f"  {case_id} | thr={best_threshold:.2f} | "
-            f"Dice={m['dice']:.4f} | HD95={hd95:.4f} | "
-            f"US={m['us']:.4f} | OS={m['os']:.4f}"
-        )
-
-        # NIfTI outputs
-        if SAVE_NIFTI_MASKS:
+        # Save probability NIfTI
+        if SAVE_NIFTI_PROB:
             save_nifti(
-                prob, image_path,
+                prob_pancreas, test_files[idx]["image"],
                 nifti_dir / f"{case_id}_unetr_ensemble_probability.nii.gz",
                 np.float32,
             )
-            save_nifti(
-                pred_best, image_path,
-                nifti_dir / f"{case_id}_unetr_ensemble_hard_mask_thr_{best_threshold:.2f}_lcc.nii.gz",
-                np.uint8,
-            )
 
-        # 2D figures: 5 axial slices at EVERY threshold (one subfolder per patient)
+        # 2D figures at every threshold
         if GENERATE_2D_FIGURES:
-            case_fig_dir = fig2d_per_pat_dir / case_id
+            case_fig_dir = fig2d_per_pt_dir / case_id
             case_fig_dir.mkdir(parents=True, exist_ok=True)
-
-            for thr in THRESHOLDS:
-                pred_thr = make_pred_mask(prob, thr)
-                m_thr    = compute_binary_confusion_metrics(pred_thr, gt_mask)
-                dice_thr = m_thr["dice"]
-
-                fig_name = (
-                    f"{case_id}_thr_{thr:.2f}_5axial_dice_{dice_thr:.4f}.png"
-                )
+            for r in case_rows:
+                thr      = r["threshold"]
+                pred_thr = make_pred_mask(prob_pancreas, thr)
                 save_5_axial_slices_figure(
-                    ct=ct,
-                    gt_mask=gt_mask,
-                    pred_mask=pred_thr,
-                    prob_mask=prob,
-                    case_id=case_id,
-                    threshold=thr,
-                    dice_value=dice_thr,
-                    save_path=case_fig_dir / fig_name,
+                    ct=ct, gt_mask=gt_mask, pred_mask=pred_thr, prob_mask=prob_pancreas,
+                    case_id=case_id, threshold=thr, dice_value=r["dice"],
+                    save_path=case_fig_dir / f"{case_id}_thr_{thr:.2f}_5axial_dice_{r['dice']:.4f}.png",
                 )
 
-    df_cases = pd.DataFrame(final_rows)
-    df_cases.to_csv(
-        metrics_dir / "test_ensemble_case_metrics_best_threshold.csv", index=False
+    # ----------------------------------------------------------------
+    # Save per-case × per-threshold CSV
+    # ----------------------------------------------------------------
+    df_by_case   = pd.DataFrame(threshold_rows)
+    by_case_path = metrics_dir / "test_ensemble_threshold_metrics_by_case.csv"
+    df_by_case.to_csv(by_case_path, index=False)
+    log(f"\nPer-case metrics saved: {by_case_path}")
+
+    # ----------------------------------------------------------------
+    # Aggregate summary per threshold
+    # ----------------------------------------------------------------
+    summary = (
+        df_by_case.groupby("threshold").agg(
+            n_cases          =("case_id",     "count"),
+            dice_mean        =("dice",        "mean"),  dice_std        =("dice",        "std"),
+            jaccard_mean     =("jaccard",     "mean"),  jaccard_std     =("jaccard",     "std"),
+            hd95_mean        =("hd95",        "mean"),  hd95_std        =("hd95",        "std"),
+            sensitivity_mean =("sensitivity", "mean"),  sensitivity_std =("sensitivity", "std"),
+            specificity_mean =("specificity", "mean"),  specificity_std =("specificity", "std"),
+            precision_mean   =("precision",   "mean"),  precision_std   =("precision",   "std"),
+            accuracy_mean    =("accuracy",    "mean"),  accuracy_std    =("accuracy",    "std"),
+            fpr_mean         =("fpr",         "mean"),  fpr_std         =("fpr",         "std"),
+            tpr_mean         =("tpr",         "mean"),  tpr_std         =("tpr",         "std"),
+            us_mean          =("us",          "mean"),  us_std          =("us",          "std"),
+            os_mean          =("os",          "mean"),  os_std          =("os",          "std"),
+            us_os_mean       =("us_os",       "mean"),  us_os_std       =("us_os",       "std"),
+        ).reset_index()
     )
+    summary_path = metrics_dir / "test_ensemble_threshold_summary.csv"
+    summary.to_csv(summary_path, index=False)
+    log(f"Threshold summary saved: {summary_path}")
 
-    # Overall summary at best threshold
-    dice_cutoffs = [0.5, 0.6, 0.7, 0.8, 0.9]
-    dice_freq = {
-        f"dice_freq_ge_{int(co * 100)}pct": float((df_cases["dice"] >= co).mean() * 100)
-        for co in dice_cutoffs
-    }
-
-    summary = {
-        "dataset":          "test",
-        "n_cases":          int(len(df_cases)),
-        "best_threshold":   best_threshold,
-        "dice_mean":        float(df_cases["dice"].mean()),
-        "dice_std":         float(df_cases["dice"].std()),
-        "jaccard_mean":     float(df_cases["jaccard"].mean()),
-        "jaccard_std":      float(df_cases["jaccard"].std()),
-        "hd95_mean":        float(df_cases["hd95"].mean()),
-        "hd95_std":         float(df_cases["hd95"].std()),
-        "sensitivity_mean": float(df_cases["sensitivity"].mean()),
-        "sensitivity_std":  float(df_cases["sensitivity"].std()),
-        "specificity_mean": float(df_cases["specificity"].mean()),
-        "specificity_std":  float(df_cases["specificity"].std()),
-        "precision_mean":   float(df_cases["precision"].mean()),
-        "precision_std":    float(df_cases["precision"].std()),
-        "accuracy_mean":    float(df_cases["accuracy"].mean()),
-        "accuracy_std":     float(df_cases["accuracy"].std()),
-        "us_mean":          float(df_cases["us"].mean()),
-        "us_std":           float(df_cases["us"].std()),
-        "os_mean":          float(df_cases["os"].mean()),
-        "os_std":           float(df_cases["os"].std()),
-        "us_os_mean":       float(df_cases["us_os"].mean()),
-        "us_os_std":        float(df_cases["us_os"].std()),
-        **dice_freq,
-    }
-
-    df_summary = pd.DataFrame([summary])
-    df_summary.to_csv(
-        metrics_dir / "test_ensemble_summary_best_threshold.csv", index=False
-    )
-
+    # ----------------------------------------------------------------
+    # Print summary table for quick threshold selection
+    # ----------------------------------------------------------------
+    log("\n" + "=" * 80)
+    log("THRESHOLD SUMMARY  (inspect to choose the threshold to report)")
     log("=" * 80)
-    log("TEST ENSEMBLE SUMMARY")
+    cols_to_print = ["threshold", "dice_mean", "dice_std",
+                     "precision_mean", "sensitivity_mean",
+                     "hd95_mean", "us_mean", "os_mean"]
+    log(summary[cols_to_print].to_string(index=False, float_format="{:.4f}".format))
     log("=" * 80)
-    log(df_summary.T.to_string())
 
-    return df_cases, df_summary, threshold_summary, best_thr_df
+    return df_by_case, summary
 
 
 # ============================================================
@@ -763,9 +586,9 @@ def main():
     USE_AMP = bool(device.type == "cuda")
     print_system_info(device)
 
-    log(f"Experiment : {EXPERIMENT_NAME}")
-    log(f"Exp dir    : {EXPERIMENT_DIR}")
-    log(f"Ensemble dir: {ENSEMBLE_DIR}")
+    log(f"Experiment    : {EXPERIMENT_NAME}")
+    log(f"Exp dir       : {EXPERIMENT_DIR}")
+    log(f"Ensemble dir  : {ENSEMBLE_DIR}")
 
     evaluate_test_ensemble(device)
 

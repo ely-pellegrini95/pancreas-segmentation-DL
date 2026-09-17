@@ -56,7 +56,6 @@ from monai.transforms import (
     KeepLargestConnectedComponent,
     Lambdad,
     LoadImaged,
-    NormalizeIntensityd,
 )
 from monai.data import CacheDataset, DataLoader
 from monai.networks.nets import UNETR
@@ -174,7 +173,6 @@ val_transforms = Compose([
     LoadImaged(keys=["image", "label"]),
     EnsureChannelFirstd(keys=["image", "label"]),
     Lambdad(keys="label", func=binarize_label),
-    NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True),
     EnsureTyped(keys=["image", "label"]),
 ])
 

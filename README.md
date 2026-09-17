@@ -173,7 +173,7 @@ Repeat with `--threshold 0.50` and `--threshold 0.90` for the remaining rows or 
 ## Main Results
 
 > **Note:** Results below are at a fixed threshold of 0.50.  
-> Calibrated-threshold results (best threshold per model selected on the test set) are reported in the paper and available in `results/`.
+> Calibrated-threshold results are reported in the paper. Raw per-case metrics are available upon request..
 
 | Model | DSC | Jaccard | Precision |
 |---|---|---|---|
@@ -189,11 +189,13 @@ Repeat with `--threshold 0.50` and `--threshold 0.90` for the remaining rows or 
 If you use this code, please cite:
 
 ```bibtex
-@inproceedings{pellegrini2026pancreas,
+@misc{pellegrini2026pancreas,
   title     = {Effects of Pre-processing and Threshold Calibration on Local
                versus Global Attention Architectures for Pancreas Parenchyma Segmentation},
   author    = {Pellegrini, Elizabeth and Ibarra, Sebasti{\'a}n and Rold{\'a}n, Nicole
                and Mu{\~n}oz, Leonel and Laguna, Juan-Pablo and Caprile, Paola
                and Besa, Cecilia and Chabert, Steren and Salas, Rodrigo},
+year = {2026},
+note = {Manuscript under review},
 }
 ```

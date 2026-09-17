@@ -43,7 +43,7 @@ Experiments were run on an NVIDIA GeForce RTX 4080 (16 GB VRAM).
 
 ## Dataset
 
-We used the publicly available **NIH Pancreas-CT dataset** (82 contrast-enhanced abdominal CT volumes).  
+We used the publicly available **NIH Pancreas-CT dataset** (80 contrast-enhanced abdominal CT volumes).  
 Download: [cancerimagingarchive.net](https://www.cancerimagingarchive.net/collection/pancreas-ct/)
 
 > Roth, H., Farag, A., Turkbey, E. B., Lu, L., Liu, J., & Summers, R. M. (2016).  
@@ -74,8 +74,7 @@ pancreas-segmentation-DL/
 │   ├── ...                                   # folds 2–5
 │   └── test.txt                              # Held-out test set (N=16)
 ├── results/
-│   ├── test_ensemble_threshold_summary_att_unet.csv
-│   └── test_ensemble_threshold_summary_unetr.csv
+│   ├── figure3_panels_zoomct.py              # Generates overlay panels
 └── README.md
 ```
 
@@ -95,6 +94,9 @@ All experiments use fixed random seeds set in `torch`, `numpy`, `random`, and `m
 | Fold 5 | 47 |
 
 ---
+
+## Preprocessing
+preprocess_with.py: includes image modifications; preprocess_without.py: standard normalization only without image modifications.
 
 ## Training
 
@@ -151,6 +153,22 @@ Outputs (inside `experiments/<name>/test_ensemble_5folds/`):
 - `figures_2d/per_patient_per_threshold/` — 5 axial slices × all thresholds
 
 ---
+
+## Figure 3 — Qualitative panels
+
+```bash
+python results/figure3_panels.py \
+    --dicom_dir   data/PANCREAS_0019_dicom \
+    --gt          data/PANCREAS_0019_mask_prep.nii.gz \
+    --attunet_prob data/PANCREAS_0019_ensemble_probability_pancreas.nii.gz \
+    --unetr_prob   data/PANCREAS_0019_unetr_ensemble_probability.nii.gz \
+    --output_dir  output_thr010 \
+    --threshold   0.10
+```
+
+Repeat with `--threshold 0.50` and `--threshold 0.90` for the remaining rows or the threshold that you needed.
+
+
 
 ## Main Results
 

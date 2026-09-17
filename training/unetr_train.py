@@ -6,7 +6,7 @@ Final UNETR training script for 3D pancreas CT segmentation.
 
 Architecture : UNETR (feature_size=24, hidden_size=512, mlp_dim=2048, num_heads=8)
 Loss         : DiceCELoss (lambda_dice=1.5, lambda_ce=0.5)
-Optimizer    : AdamW (lr=1e-4, weight_decay=1e-4)
+Optimizer    : AdamW (lr=1e-4, weight_decay=1e-5)
 Scheduler    : LinearLR warmup (25 epochs) + CosineAnnealingLR via SequentialLR
 Training     : 500 epochs, AMP, gradient clipping, CacheDataset
 Augmentation : RandFlip × 3, RandZoom, RandAffine, Rand3DElastic,
@@ -356,7 +356,7 @@ def create_model_loss_optimizer_scheduler(device, fold):
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=1e-4,
-        weight_decay=1e-4,
+        weight_decay=1e-5,
     )
 
     warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
@@ -388,7 +388,7 @@ def create_model_loss_optimizer_scheduler(device, fold):
     log("  num_heads    : 8")
     log("  dropout_rate : 0.2")
     log("  loss         : DiceCELoss (lambda_dice=1.5, lambda_ce=0.5)")
-    log("  optimizer    : AdamW (lr=1e-4, weight_decay=1e-4)")
+    log("  optimizer    : AdamW (lr=1e-4, weight_decay=1e-5)")
     log(f"  scheduler    : LinearLR warmup ({WARMUP_EPOCHS} ep, start_factor=0.05)"
         " → CosineAnnealingLR (eta_min=1e-6)")
     log("=" * 60)

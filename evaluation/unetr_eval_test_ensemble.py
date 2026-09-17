@@ -9,7 +9,9 @@ Thresholds : 0.10 – 0.90 (step 0.05)  →  17 values
 Metrics    : Dice, Jaccard, HD95, Sensitivity, Specificity, Precision, Accuracy,
              TP, FP, FN, TN, US, OS, US-OS  (Mohammadi et al. 2025)
 
-The threshold sweep is provided for sensitivity analysis only. No operating threshold is selected from the held-out evaluation set. Any deployment threshold should be prespecified or selected using validation data.
+The threshold sweep is provided for sensitivity analysis only. No operating 
+threshold is selected from the held-out evaluation set. Any deployment threshold 
+should be prespecified or selected using validation data.
 
 Outputs (inside ENSEMBLE_DIR):
   metrics/

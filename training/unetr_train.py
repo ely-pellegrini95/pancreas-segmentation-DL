@@ -200,7 +200,7 @@ train_transforms = Compose([
         neg=1,
         num_samples=12,
         image_key="image",
-        image_threshold=0.01,
+        image_threshold=0,
     ),
     RandZoomd(
         keys=["image", "label"],

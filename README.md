@@ -126,6 +126,7 @@ python training/unetr_train.py
 |---|---|---|---|---|
 | `*_preliminary` | smaller | 200 | Adam lr=1e-3 | Dataset |
 | `*_train` | full | 500 | AdamW lr=1e-4 | CacheDataset |
+
 UNETR uses a linear warm-up phase (25 epochs) followed by cosine annealing; Attention U-Net applies cosine annealing directly, as convolutional architectures do not require warm-up for attention stabilization.
 
 ---

@@ -2,7 +2,7 @@
 # Entrenamiento preliminar de UNETR 3D en NIH Pancreas-CT
 # 5-fold cross-validation. Sin NormalizeIntensityd.
 # Arquitectura: feature_size=24, hidden_size=384, mlp_dim=1536, num_heads=6
-# Optimizador: Adam lr=1e-4, sin weight_decay, sin scheduler
+# Optimizador: Adam lr=1e-3, sin weight_decay, sin scheduler
 # 200 épocas, patience=60
 
 import os
@@ -224,7 +224,7 @@ def create_model_loss_optimizer_metric(device, fold):
         lambda_ce=1.0,
     )
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
 
     dice_metric = DiceMetric(include_background=False, reduction="mean")
 
@@ -237,7 +237,7 @@ def create_model_loss_optimizer_metric(device, fold):
     print("mlp_dim: 1536")
     print("num_heads: 6")
     print("dropout_rate: 0.1")
-    print("optimizer: Adam lr=1e-4")
+    print("optimizer: Adam lr=1e-3")
     print("=" * 60)
 
     return model, loss_function, optimizer, dice_metric

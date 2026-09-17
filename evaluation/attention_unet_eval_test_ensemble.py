@@ -14,7 +14,9 @@ Procedure
 4. Save per-case × per-threshold CSV, aggregate summary CSV, NIfTI probability
    maps, and 2-D visualisations (5 axial slices per patient × all thresholds).
 
-The threshold sweep is provided for sensitivity analysis only. No operating threshold is selected from the held-out evaluation set. Any deployment threshold should be prespecified or selected using validation data.
+The threshold sweep is provided for sensitivity analysis only. No operating 
+threshold is selected from the held-out evaluation set. Any deployment threshold 
+should be prespecified or selected using validation data.
 
 Outputs  (all inside ENSEMBLE_DIR)
 -----------------------------------

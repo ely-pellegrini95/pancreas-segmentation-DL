@@ -147,8 +147,6 @@ Outputs (inside `experiments/<name>/test_ensemble_5folds/`):
 - `metrics/test_ensemble_threshold_metrics_by_case.csv` — per-case × per-threshold
 - `metrics/test_ensemble_threshold_summary.csv` — aggregated across cases
 - `metrics/test_ensemble_best_threshold.csv` — selected threshold + rationale
-- `metrics/test_ensemble_case_metrics_best_threshold.csv` — per-case at best threshold
-- `metrics/test_ensemble_summary_best_threshold.csv` — overall summary
 - `nifti_masks/` — ensemble probability map + hard mask (NIfTI)
 - `figures_2d/per_patient_per_threshold/` — 5 axial slices × all thresholds
 
@@ -173,7 +171,7 @@ Repeat with `--threshold 0.50` and `--threshold 0.90` for the remaining rows or 
 ## Main Results
 
 > **Note:** Results below are at a fixed threshold of 0.50.  
-> Calibrated-threshold results are reported in the paper. Raw per-case metrics are available upon request..
+> Threshold-sweep behavior is reported in the manuscript; the main held-out comparison is reported at the fixed reference threshold of 0.50. Raw per-case metrics are available upon request..
 
 | Model | DSC | Jaccard | Precision |
 |---|---|---|---|

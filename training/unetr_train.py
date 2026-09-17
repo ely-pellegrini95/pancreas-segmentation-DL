@@ -110,7 +110,6 @@ USE_AMP = False  # overridden in main() based on CUDA availability
 # ============================================================
 _LOG_FILE = None
 
-
 def setup_logging():
     """Open a timestamped log file; return its path."""
     global _LOG_FILE
@@ -120,7 +119,6 @@ def setup_logging():
     log_path  = log_dir / f"unetr_run_{timestamp}.log"
     _LOG_FILE = open(log_path, "a", buffering=1, encoding="utf-8")
     return log_path
-
 
 def log(*args, **kwargs):
     """Print to console and write to the log file simultaneously."""
@@ -134,7 +132,6 @@ def log(*args, **kwargs):
         except Exception:
             pass  # never crash training over a logging failure
 
-
 def close_log():
     global _LOG_FILE
     if _LOG_FILE is not None and not _LOG_FILE.closed:
@@ -142,7 +139,6 @@ def close_log():
             _LOG_FILE.close()
         except Exception:
             pass
-
 
 def print_system_info(device):
     """Log hardware and environment details at startup."""
@@ -180,13 +176,11 @@ def print_system_info(device):
     log("AMP enabled:", USE_AMP)
     log("=" * 60)
 
-
 # ============================================================
 # DATA TRANSFORMS
 # ============================================================
 def binarize_label(x):
     return (x > 0).astype(np.uint8)
-
 
 train_transforms = Compose([
     LoadImaged(keys=["image", "label"]),
@@ -241,7 +235,6 @@ val_transforms = Compose([
     EnsureTyped(keys=["image", "label"]),
 ])
 
-
 # ============================================================
 # DATA LOADING
 # ============================================================
@@ -257,34 +250,24 @@ def load_split(split_file):
         for cid in case_ids
     ]
 
-
 def get_files_for_fold(fold):
-    """
-    Load train / internal-validation file lists for one fold.
-
-    The internal validation set is also split in half: the first half is used
-    for fast monitoring during training; the full set is used for the final
-    per-case evaluation after training.
-    """
+    """Load train / internal-validation file lists for one fold."""
     train_files = load_split(DATA_DIR / "splits" / f"fold_{fold}_train.txt")
     val_files   = load_split(DATA_DIR / "splits" / f"fold_{fold}_val.txt")
-    half        = max(1, len(val_files) // 2)
-    val_files_half = val_files[:half]
 
     log("-" * 60)
     log(f"[FOLD {fold}] Data summary:")
-    log(f"  Train                      : {len(train_files)}")
-    log(f"  Internal val (full)        : {len(val_files)}")
-    log(f"  Internal val (first half)  : {len(val_files_half)}")
+    log(f"  Train              : {len(train_files)}")
+    log(f"  Internal val (full): {len(val_files)}")
     log("-" * 60)
-    return train_files, val_files, val_files_half
+    return train_files, val_files
 
-
-def create_loaders_for_fold(train_files, val_files, val_files_half, fold, check_batch=False):
+def create_loaders_for_fold(train_files, val_files, fold, check_batch=False):
     """Build CacheDatasets and DataLoaders for one fold."""
-    train_ds    = CacheDataset(data=train_files,    transform=train_transforms, cache_rate=1.0, num_workers=NUM_WORKERS)
-    val_ds      = CacheDataset(data=val_files,      transform=val_transforms,   cache_rate=1.0, num_workers=NUM_WORKERS)
-    val_ds_half = CacheDataset(data=val_files_half, transform=val_transforms,   cache_rate=1.0, num_workers=NUM_WORKERS)
+    train_ds = CacheDataset(data=train_files, transform=train_transforms,
+                            cache_rate=1.0, num_workers=NUM_WORKERS)
+    val_ds   = CacheDataset(data=val_files,   transform=val_transforms,
+                            cache_rate=1.0, num_workers=NUM_WORKERS)
 
     loader_kwargs = dict(
         batch_size=1,
@@ -294,18 +277,16 @@ def create_loaders_for_fold(train_files, val_files, val_files_half, fold, check_
         persistent_workers=(NUM_WORKERS > 0),
     )
 
-    train_loader    = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,
-                                 num_workers=NUM_WORKERS,
-                                 pin_memory=torch.cuda.is_available(),
-                                 persistent_workers=(NUM_WORKERS > 0))
-    val_loader      = DataLoader(val_ds,      **loader_kwargs)
-    val_loader_half = DataLoader(val_ds_half, **loader_kwargs)
+    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,
+                              num_workers=NUM_WORKERS,
+                              pin_memory=torch.cuda.is_available(),
+                              persistent_workers=(NUM_WORKERS > 0))
+    val_loader   = DataLoader(val_ds, **loader_kwargs)
 
     log("-" * 60)
     log(f"[FOLD {fold}] DataLoader summary:")
-    log(f"  Train loader              : {len(train_loader)} batches")
-    log(f"  Internal val (full)       : {len(val_loader)} batches")
-    log(f"  Internal val (half)       : {len(val_loader_half)} batches")
+    log(f"  Train loader       : {len(train_loader)} batches")
+    log(f"  Internal val (full): {len(val_loader)} batches")
     log("-" * 60)
 
     if check_batch:
@@ -319,8 +300,7 @@ def create_loaders_for_fold(train_files, val_files, val_files_half, fold, check_
         log(f"[FOLD {fold}] Batch check passed.")
         log("=" * 60)
 
-    return train_ds, val_ds, val_ds_half, train_loader, val_loader, val_loader_half
-
+    return train_ds, val_ds, train_loader, val_loader
 
 # ============================================================
 # MODEL, LOSS, OPTIMIZER, SCHEDULER
@@ -342,7 +322,6 @@ def create_unetr_model(device):
         spatial_dims=3,
     ).to(device)
     return model
-
 
 def create_model_loss_optimizer_scheduler(device, fold):
     model = create_unetr_model(device)
@@ -397,7 +376,6 @@ def create_model_loss_optimizer_scheduler(device, fold):
 
     return model, loss_function, optimizer, scheduler, dice_metric
 
-
 # Post-processing transforms
 post_pred_hard    = AsDiscrete(argmax=True, to_onehot=2)
 post_label        = AsDiscrete(to_onehot=2)
@@ -405,7 +383,6 @@ post_pred_largest = Compose([
     AsDiscrete(argmax=True, to_onehot=2),
     KeepLargestConnectedComponent(applied_labels=[1], is_onehot=True, independent=False),
 ])
-
 
 # ============================================================
 # METRICS
@@ -432,7 +409,6 @@ def compute_binary_confusion_metrics(pred_onehot, label_onehot):
         "tn": int(tn),
     }
 
-
 # ============================================================
 # HELPERS
 # ============================================================
@@ -441,7 +417,6 @@ def create_output_dir_for_fold(fold):
     output_dir.mkdir(parents=True, exist_ok=True)
     log(f"[FOLD {fold}] Output directory: {output_dir}")
     return output_dir
-
 
 def create_training_csv(output_dir, fold):
     csv_path = output_dir / "training_log.csv"
@@ -458,9 +433,8 @@ def create_training_csv(output_dir, fold):
     log(f"[FOLD {fold}] Training CSV: {csv_path}")
     return csv_path
 
-
 # ============================================================
-# VALIDATION LOOP (fast — first-half of internal val set)
+# VALIDATION LOOP (full internal val set)
 # ============================================================
 def run_internal_validation(model, loader, loss_function, dice_metric, device, fold):
     model.eval()
@@ -468,7 +442,7 @@ def run_internal_validation(model, loader, loss_function, dice_metric, device, f
     val_losses = []
 
     with torch.no_grad():
-        for data in tqdm(loader, desc=f"[FOLD {fold}] Internal val (fast)"):
+        for data in tqdm(loader, desc=f"[FOLD {fold}] Internal val"):
             inputs = data["image"].to(device, non_blocking=True)
             labels = data["label"].to(device, non_blocking=True)
 
@@ -483,15 +457,14 @@ def run_internal_validation(model, loader, loss_function, dice_metric, device, f
                 val_loss = loss_function(outputs, labels)
 
             val_losses.append(val_loss.item())
-            preds  = [post_pred_hard(i) for i in outputs]
-            labels_ = [post_label(i)   for i in labels]
+            preds   = [post_pred_hard(i) for i in outputs]
+            labels_ = [post_label(i)     for i in labels]
             dice_metric(y_pred=preds, y=labels_)
 
     val_dice = dice_metric.aggregate().item()
     dice_metric.reset()
     val_loss_mean = float(np.mean(val_losses)) if val_losses else float("nan")
     return val_loss_mean, val_dice
-
 
 # ============================================================
 # POST-TRAINING EVALUATION (full internal val set, per case)
@@ -534,7 +507,7 @@ def evaluate_best_model_internal(fold, model, loader, files, loss_function, devi
             label_case = labels_pp[0]
 
             pred_variants = {
-                "no_postprocessing":         [post_pred_hard(i)    for i in outputs],
+                "no_postprocessing":           [post_pred_hard(i)    for i in outputs],
                 "largest_connected_component": [post_pred_largest(i) for i in outputs],
             }
 
@@ -584,7 +557,6 @@ def evaluate_best_model_internal(fold, model, loader, files, loss_function, devi
     cases_csv = output_dir / "internal_validation_case_metrics.csv"
     cases_df.to_csv(cases_csv, index=False)
 
-    # Per-fold summary grouped by post-processing variant
     summary_rows = []
     for variant_name, group in cases_df.groupby("postprocessing"):
         summary_rows.append({
@@ -617,7 +589,6 @@ def evaluate_best_model_internal(fold, model, loader, files, loss_function, devi
     log(f"[FOLD {fold}] Fold summary saved     : {summary_csv}")
     return cases_df, summary_df
 
-
 # ============================================================
 # FOLD TRAINING
 # ============================================================
@@ -625,7 +596,6 @@ def train_one_fold(fold, device, check_batch=False):
     log("=" * 80)
     log(f"[FOLD {fold}] TRAINING START")
 
-    # Per-fold determinism
     fold_seed = SEED + fold
     set_determinism(seed=fold_seed)
     random.seed(fold_seed)
@@ -636,12 +606,11 @@ def train_one_fold(fold, device, check_batch=False):
         torch.cuda.manual_seed_all(fold_seed)
     log(f"[FOLD {fold}] Seed: {fold_seed}")
 
-    train_files, val_files, val_files_half = get_files_for_fold(fold)
-    (train_ds, val_ds, val_ds_half,
-     train_loader, val_loader, val_loader_half) = create_loaders_for_fold(
+    train_files, val_files = get_files_for_fold(fold)
+    (train_ds, val_ds,
+     train_loader, val_loader) = create_loaders_for_fold(
         train_files=train_files,
         val_files=val_files,
-        val_files_half=val_files_half,
         fold=fold,
         check_batch=check_batch,
     )
@@ -654,10 +623,10 @@ def train_one_fold(fold, device, check_batch=False):
 
     scaler = torch.amp.GradScaler("cuda", enabled=(device.type == "cuda" and USE_AMP))
 
-    best_metric             = -1.0
-    best_metric_epoch       = -1
+    best_metric                = -1.0
+    best_metric_epoch          = -1
     epochs_without_improvement = 0
-    early_stop              = False
+    early_stop                 = False
 
     log(f"[FOLD {fold}] max_epochs={MAX_EPOCHS}, val_interval={VAL_INTERVAL}, patience={PATIENCE}")
 
@@ -735,10 +704,10 @@ def train_one_fold(fold, device, check_batch=False):
         # ---- Validation ----
         if (epoch + 1) % VAL_INTERVAL == 0:
             log("-" * 80)
-            log(f"[FOLD {fold}] Fast internal validation (first-half subset), epoch {epoch + 1}")
+            log(f"[FOLD {fold}] Internal validation (full set), epoch {epoch + 1}")
             val_loss_internal, val_dice_internal = run_internal_validation(
                 model=model,
-                loader=val_loader_half,
+                loader=val_loader,
                 loss_function=loss_function,
                 dice_metric=dice_metric,
                 device=device,
@@ -748,9 +717,9 @@ def train_one_fold(fold, device, check_batch=False):
             log(f"[FOLD {fold}] Val Dice   : {val_dice_internal:.4f}")
 
             if val_dice_internal > best_metric:
-                best_metric      = val_dice_internal
-                best_metric_epoch = epoch + 1
-                saved_best_model  = True
+                best_metric            = val_dice_internal
+                best_metric_epoch      = epoch + 1
+                saved_best_model       = True
                 epochs_without_improvement = 0
                 torch.save(model.state_dict(), output_dir / "best_metric_model.pth")
                 log(f"[FOLD {fold}] New best model saved — Dice: {best_metric:.4f}, epoch: {best_metric_epoch}")
@@ -849,7 +818,6 @@ def train_one_fold(fold, device, check_batch=False):
         "internal_summary_csv": str(output_dir / "internal_validation_fold_summary.csv"),
     }
 
-
 # ============================================================
 # PLOTS AND SUMMARIES
 # ============================================================
@@ -865,7 +833,6 @@ def _read_training_log(fold):
             df[col] = pd.to_numeric(df[col], errors="coerce")
     return df
 
-
 def plot_training_curves():
     """Generate per-fold and combined loss / Dice curves."""
     EXPERIMENT_DIR.mkdir(parents=True, exist_ok=True)
@@ -873,7 +840,6 @@ def plot_training_curves():
     green_palette = {1: "#006400", 2: "#228B22", 3: "#32CD32", 4: "#66CDAA", 5: "#98FB98"}
     red_palette   = {1: "#8B0000", 2: "#B22222", 3: "#DC143C", 4: "#FF6347", 5: "#FFA07A"}
 
-    # Individual fold: train loss
     for fold in FOLDS_TO_RUN:
         df = _read_training_log(fold)
         if df is None:
@@ -896,7 +862,6 @@ def plot_training_curves():
         plt.close()
         log(f"Loss curve saved: {fig_path}")
 
-    # Combined train loss — all folds
     plt.figure(figsize=(10, 6))
     for fold in FOLDS_TO_RUN:
         df = _read_training_log(fold)
@@ -920,7 +885,6 @@ def plot_training_curves():
     plt.close()
     log(f"Combined loss curve saved: {fig_path}")
 
-    # Combined internal val Dice — all folds
     plt.figure(figsize=(10, 6))
     for fold in FOLDS_TO_RUN:
         df = _read_training_log(fold)
@@ -941,7 +905,6 @@ def plot_training_curves():
     plt.savefig(fig_path, dpi=300, bbox_inches="tight")
     plt.close()
     log(f"Dice curve saved: {fig_path}")
-
 
 def merge_internal_metrics():
     """Concatenate per-case and per-fold summary CSVs from all folds."""
@@ -967,7 +930,6 @@ def merge_internal_metrics():
         all_summary.to_csv(out, index=False)
         log(f"Merged fold summaries saved: {out}")
 
-
 # ============================================================
 # MAIN
 # ============================================================
@@ -984,7 +946,6 @@ def main():
     USE_AMP = bool(device.type == "cuda")
     print_system_info(device)
 
-    # Global seed (each fold sets its own seed before training)
     set_determinism(seed=SEED)
     random.seed(SEED)
     np.random.seed(SEED)
@@ -1034,7 +995,6 @@ def main():
     log("=" * 80)
 
     close_log()
-
 
 if __name__ == "__main__":
     main()

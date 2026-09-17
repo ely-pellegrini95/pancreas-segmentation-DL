@@ -14,9 +14,7 @@ Procedure
 4. Save per-case × per-threshold CSV, aggregate summary CSV, NIfTI probability
    maps, and 2-D visualisations (5 axial slices per patient × all thresholds).
 
-No threshold is selected automatically.  Inspect the summary CSV
-(test_ensemble_threshold_summary.csv) to choose the threshold you want to
-report.
+The threshold sweep is provided for sensitivity analysis only. No operating threshold is selected from the held-out evaluation set. Any deployment threshold should be prespecified or selected using validation data.
 
 Outputs  (all inside ENSEMBLE_DIR)
 -----------------------------------

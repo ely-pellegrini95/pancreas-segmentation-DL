@@ -58,7 +58,6 @@ from monai.transforms import (
     KeepLargestConnectedComponent,
     Lambdad,
     LoadImaged,
-    NormalizeIntensityd,
     Rand3DElasticd,
     RandAffined,
     RandCropByPosNegLabeld,
@@ -193,7 +192,6 @@ train_transforms = Compose([
     LoadImaged(keys=["image", "label"]),
     EnsureChannelFirstd(keys=["image", "label"]),
     Lambdad(keys="label", func=binarize_label),
-    NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True),
     RandCropByPosNegLabeld(
         keys=["image", "label"],
         label_key="label",
@@ -238,7 +236,6 @@ val_transforms = Compose([
     LoadImaged(keys=["image", "label"]),
     EnsureChannelFirstd(keys=["image", "label"]),
     Lambdad(keys="label", func=binarize_label),
-    NormalizeIntensityd(keys=["image"], nonzero=True, channel_wise=True),
     EnsureTyped(keys=["image", "label"]),
 ])
 

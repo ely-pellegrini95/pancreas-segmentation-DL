@@ -69,8 +69,8 @@ pancreas-segmentation-DL/
 ├── preprocessing/
 │   └── ...                                   # Preprocessing pipeline
 ├── splits/
-│   ├── fold_1_train.txt                      # Patient IDs — fold 1 train (64 cases)
-│   ├── fold_1_val.txt                        # Patient IDs — fold 1 internal val (16 cases)
+│   ├── fold_1_train.txt                      # Patient IDs — fold 1 train (51 cases)
+│   ├── fold_1_val.txt                        # Patient IDs — fold 1 internal val (13 cases)
 │   ├── ...                                   # folds 2–5
 │   └── test.txt                              # Held-out test set (N=16)
 ├── results/

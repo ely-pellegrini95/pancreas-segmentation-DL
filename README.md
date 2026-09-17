@@ -154,7 +154,7 @@ Outputs (inside `experiments/<name>/test_ensemble_5folds/`):
 ## Figure 3 — Qualitative panels
 
 ```bash
-python results/figure3_panels.py \
+python results/figure3_panels_zoomct.py \
     --dicom_dir   data/PANCREAS_0019_dicom \
     --gt          data/PANCREAS_0019_mask_prep.nii.gz \
     --attunet_prob data/PANCREAS_0019_ensemble_probability_pancreas.nii.gz \

@@ -19,7 +19,7 @@ Elizabeth Pellegrini · Sebastián Ibarra · Nicole Roldán · Leonel Muñoz · 
 
 This repository contains training scripts, preprocessing pipeline, cross-validation splits, ensemble evaluation, and results for a comparison between **Attention U-Net** and **UNETR** for 3-D pancreas CT segmentation using the [NIH Pancreas-CT dataset](https://www.cancerimagingarchive.net/collection/pancreas-ct/).
 
-The study examines the effect of preprocessing choices and probability threshold calibration (sweep 0.10–0.90, step 0.05) on segmentation performance, reporting Dice, Jaccard and the Mohammadi et al. (2025) under-/over-segmentation indices.
+The study examines the effect of preprocessing choices and probability threshold (sweep 0.10–0.90, step 0.05) on segmentation performance, reporting Dice, Jaccard and the Mohammadi et al. (2025) under-/over-segmentation indices.
 
 ---
 
@@ -133,8 +133,7 @@ UNETR uses a linear warm-up phase (25 epochs) followed by cosine annealing; Atte
 
 ## Ensemble Evaluation
 
-Each evaluation script loads the 5 best-checkpoint models, averages their softmax probabilities, sweeps thresholds 0.10–0.90, and selects the best threshold by:  
-**max Dice mean → highest Precision → lowest HD95 → highest threshold** (within tolerance 0.01).
+Each evaluation script loads the five fold-specific best-checkpoint models, averages their softmax probabilities, and evaluates probability thresholds from 0.10 to 0.90 in 0.05 increments. No optimal threshold is selected automatically; the threshold sweep is used to characterize the sensitivity of segmentation performance to the operating threshold.
 
 ```bash
 # Attention U-Net
@@ -148,7 +147,6 @@ Outputs (inside `experiments/<name>/test_ensemble_5folds/`):
 
 - `metrics/test_ensemble_threshold_metrics_by_case.csv` — per-case × per-threshold
 - `metrics/test_ensemble_threshold_summary.csv` — aggregated across cases
-- `metrics/test_ensemble_best_threshold.csv` — selected threshold + rationale
 - `nifti_masks/` — ensemble probability map + hard mask (NIfTI)
 - `figures_2d/per_patient_per_threshold/` — 5 axial slices × all thresholds
 
@@ -173,7 +171,7 @@ Repeat with `--threshold 0.50` and `--threshold 0.90` for the remaining rows or 
 ## Main Results
 
 > **Note:** Results below are at a fixed threshold of 0.50.  
-> Threshold-sweep behavior is reported in the manuscript; the main held-out comparison is reported at the fixed reference threshold of 0.50. Raw per-case metrics are available upon request..
+> Threshold-sweep behavior is reported in the draft manuscript; the main held-out comparison is reported at the fixed reference threshold of 0.50. Raw per-case metrics are available upon request.
 
 | Model | DSC | Jaccard | Precision |
 |---|---|---|---|

@@ -310,7 +310,7 @@ def train_fold(fold, device):
     print(f"[FOLD {fold}] Seed: {fold_seed}")
 
     train_files, val_files = get_files_for_fold(fold)
-    _, _, train_loader, val_loader, _ = create_loaders(
+    _, _, train_loader, val_loader = create_loaders(
         train_files, val_files, fold,
         check_batch=(fold == FOLDS_TO_RUN[0]),
     )

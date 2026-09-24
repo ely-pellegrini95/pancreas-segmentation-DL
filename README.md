@@ -163,14 +163,14 @@ python results/figure3_panels_zoomct.py \
     --threshold   0.10
 ```
 
-Repeat with `--threshold 0.50` and `--threshold 0.90` for the remaining rows or the threshold that you needed.
+Repeat with `--threshold 0.50` and `--threshold 0.90` to reproduce the three threshold columns shown in Figure 3.
 
 
 
 ## Main Results
 
 > **Note:** Results below are at a fixed threshold of 0.50.  
-> Threshold-sweep behavior is reported in the draft manuscript; the main held-out comparison is reported at the fixed reference threshold of 0.50. Raw per-case metrics are available upon request.
+> Threshold-sweep behavior is reported in the draft manuscript; the main held-out comparison is reported at the fixed reference threshold of 0.50.
 
 | Model | DSC | Jaccard | Precision |
 |---|---|---|---|

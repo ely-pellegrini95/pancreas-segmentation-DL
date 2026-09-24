@@ -1,10 +1,7 @@
 """
-figure3_panels.py — TP/FP/FN overlay panels for Figure 3
+figure3_panels_zoomct.py — TP/FP/FN overlay panels for Figure 3
 =========================================================
-Generates the qualitative segmentation panels used in Figure 3 of the paper:
-
-    "3D Pancreas Segmentation in CT: Attention U-Net vs. UNETR — A
-     Comparative Study on the NIH Pancreas-CT Dataset"
+Generates the qualitative segmentation panels used in Figure 3 of the paper
 
 Given a patient's CT volume (DICOM) and three NIfTI files (ground truth mask,
 Att U-Net probability map, UNETR probability map), this script:
@@ -18,6 +15,8 @@ Att U-Net probability map, UNETR probability map), this script:
 
 To reproduce Figure 3 from the paper, run the script three times with
 --threshold 0.10, 0.50, and 0.90.
+These thresholds are visualised for sensitivity analysis.
+This script does not select an operating threshold.
 
 REQUIREMENTS
 ------------
@@ -39,7 +38,7 @@ INPUTS
                   Default: output_panels/
   --threshold     Binarisation threshold applied to both probability maps.
                   Range: 0.0–1.0.  Default: 0.10
-                  Use 0.10 / 0.50 / 0.90 to reproduce the three rows in Fig. 3.
+                  Use 0.10 / 0.50 / 0.90 to reproduce the three threshold columns in Fig. 3.
 
 OUTPUTS (in --output_dir)
 --------------------------
@@ -62,8 +61,8 @@ COLOR LEGEND
 
 EXAMPLE USAGE
 -------------
-  # Threshold 0.10 (low, high recall — row 1 of Figure 3)
-  python figure3_panels.py \\
+  # Threshold 0.10 sensitivity-analysis example, column 1 of Figure 3
+  python figure3_panels_zoomct.py \\
       --dicom_dir  data/PANCREAS_0019_dicom \\
       --gt         data/PANCREAS_0019_mask_prep.nii.gz \\
       --attunet_prob data/PANCREAS_0019_ensemble_probability_pancreas.nii.gz \\
@@ -71,11 +70,11 @@ EXAMPLE USAGE
       --output_dir output_thr010 \\
       --threshold 0.10
 
-  # Threshold 0.50 (balanced — row 2 of Figure 3)
-  python figure3_panels.py  ...same inputs...  --output_dir output_thr050 --threshold 0.50
+  # Threshold 0.50 fixed conventional reference, column 2 of Figure 3
+  python figure3_panels_zoomct.py  ...same inputs...  --output_dir output_thr050 --threshold 0.50
 
-  # Threshold 0.90 (high precision — row 3 of Figure 3)
-  python figure3_panels.py  ...same inputs...  --output_dir output_thr090 --threshold 0.90
+  # Threshold 0.90 sensitivity-analysis example, column 3 of Figure 3
+  python figure3_panels_zoomct.py  ...same inputs...  --output_dir output_thr090 --threshold 0.90
 """
 
 import argparse
@@ -296,7 +295,7 @@ def parse_args():
                    help="Directory to save output PNG files. (default: output_panels/)")
     p.add_argument("--threshold",    type=float, default=0.10,
                    help="Binarisation threshold for probability maps. "
-                        "Use 0.10 / 0.50 / 0.90 to reproduce the three rows "
+                        "Use 0.10 / 0.50 / 0.90 to reproduce the three threshold columns "
                         "of Figure 3. (default: 0.10)")
     return p.parse_args()
 
@@ -312,7 +311,7 @@ def main():
     threshold    = args.threshold
 
     print(f"\n{'='*60}")
-    print(f"figure3_panels.py  |  threshold = {threshold:.2f}")
+    print(f"figure3_panels_zoomct.py  |  threshold = {threshold:.2f}")
     print(f"{'='*60}")
 
     # ----------------------------------------------------------

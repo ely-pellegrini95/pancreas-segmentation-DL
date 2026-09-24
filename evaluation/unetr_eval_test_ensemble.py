@@ -458,9 +458,9 @@ def save_nifti(array, reference_path, save_path, dtype=np.float32):
 # ============================================================
 def evaluate_test_ensemble(device):
     """
-    Run the full test-set ensemble evaluation across all thresholds.
-    No threshold is selected automatically — inspect the summary CSV
-    to choose the threshold you want to report.
+    Run the full held-out ensemble evaluation across all thresholds.
+    The threshold sweep is used for sensitivity analysis only.
+    No operating threshold is selected from the held-out evaluation set.
     """
     ENSEMBLE_DIR.mkdir(parents=True, exist_ok=True)
     metrics_dir      = ENSEMBLE_DIR / "metrics"

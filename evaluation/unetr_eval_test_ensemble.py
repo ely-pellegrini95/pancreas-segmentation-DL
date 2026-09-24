@@ -554,10 +554,10 @@ def evaluate_test_ensemble(device):
     log(f"Threshold summary saved: {summary_path}")
 
     # ----------------------------------------------------------------
-    # Print summary table for quick threshold selection
+    # Print summary table for threshold-sensitivity inspection
     # ----------------------------------------------------------------
     log("\n" + "=" * 80)
-    log("THRESHOLD SUMMARY  (inspect to choose the threshold to report)")
+    log("THRESHOLD SENSITIVITY SUMMARY")
     log("=" * 80)
     cols_to_print = ["threshold", "dice_mean", "dice_std",
                      "precision_mean", "sensitivity_mean",

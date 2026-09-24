@@ -26,6 +26,13 @@ Outputs (written to EXPERIMENT_DIR / fold_<n>/)
 - logs/
 - all_folds_case_metrics.csv
 - all_folds_metrics_summary.csv
+
+Post-training evaluation
+------------------------
+- Internal-validation metrics only.
+- The 16-case held-out subset is not accessed by this script.
+- Held-out evaluation is performed separately using the final
+  five-fold ensemble evaluation scripts.
 """
 
 import os
@@ -180,9 +187,8 @@ def load_split(split_file):
 def get_files_for_fold(fold):
     train_files = load_split(DATA_DIR / "splits" / f"fold_{fold}_train.txt")
     val_files   = load_split(DATA_DIR / "splits" / f"fold_{fold}_val.txt")
-    test_files  = load_split(DATA_DIR / "splits" / "test.txt")
-    print(f"[FOLD {fold}] Train={len(train_files)} | Val={len(val_files)} | Test={len(test_files)}")
-    return train_files, val_files, test_files
+    print(f"[FOLD {fold}] Train={len(train_files)} | Val={len(val_files)}")
+    return train_files, val_files
 
 
 train_transforms = Compose([
@@ -220,23 +226,20 @@ val_transforms = Compose([
 def create_loaders(train_files, val_files, test_files, fold, check_batch=False):
     train_ds = Dataset(data=train_files, transform=train_transforms)
     val_ds   = Dataset(data=val_files,   transform=val_transforms)
-    test_ds  = Dataset(data=test_files,  transform=val_transforms)
-
+    
     pin = torch.cuda.is_available()
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,
                               num_workers=NUM_WORKERS, pin_memory=pin)
     val_loader   = DataLoader(val_ds,   batch_size=1, shuffle=False,
                               num_workers=NUM_WORKERS, pin_memory=pin)
-    test_loader  = DataLoader(test_ds,  batch_size=1, shuffle=False,
-                              num_workers=NUM_WORKERS, pin_memory=pin)
-
+    
     if check_batch:
         batch = next(iter(train_loader))
         print(f"[FOLD {fold}] Batch check — image: {batch['image'].shape}, "
               f"label: {batch['label'].shape}, "
               f"range: [{batch['image'].min():.3f}, {batch['image'].max():.3f}]")
 
-    return train_ds, val_ds, test_ds, train_loader, val_loader, test_loader
+    return train_ds, val_ds, train_loader, val_loader
 
 
 # ============================================================
@@ -309,9 +312,9 @@ def train_fold(fold, device):
         torch.cuda.manual_seed(fold_seed); torch.cuda.manual_seed_all(fold_seed)
     print(f"[FOLD {fold}] Seed: {fold_seed}")
 
-    train_files, val_files, test_files = get_files_for_fold(fold)
+    train_files, val_files = get_files_for_fold(fold)
     _, _, _, train_loader, val_loader, _ = create_loaders(
-        train_files, val_files, test_files, fold,
+        train_files, val_files, fold,
         check_batch=(fold == FOLDS_TO_RUN[0]),
     )
 
@@ -423,7 +426,7 @@ def train_fold(fold, device):
 
 
 # ============================================================
-# POST-TRAINING EVALUATION (per-case, validation + test)
+# POST-TRAINING EVALUATION (per-case, validation)
 # ============================================================
 def evaluate_fold(fold, device):
     train_files, val_files, test_files = get_files_for_fold(fold)
@@ -474,8 +477,7 @@ def evaluate_fold(fold, device):
     for pp_name, pp_fn in [("no_postprocessing", post_pred_hard),
                             ("largest_connected_component", post_pred_lcc)]:
         eval_loader(val_loader, val_files, "internal_val", pp_fn, pp_name)
-        eval_loader(test_loader, test_files, "test", pp_fn, pp_name)
-
+    
     del model
     if torch.cuda.is_available():
         torch.cuda.empty_cache()

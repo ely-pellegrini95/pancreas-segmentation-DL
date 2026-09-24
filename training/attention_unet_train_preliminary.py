@@ -223,7 +223,7 @@ val_transforms = Compose([
 ])
 
 
-def create_loaders(train_files, val_files, test_files, fold, check_batch=False):
+def create_loaders(train_files, val_files, fold, check_batch=False):
     train_ds = Dataset(data=train_files, transform=train_transforms)
     val_ds   = Dataset(data=val_files,   transform=val_transforms)
     
@@ -313,7 +313,7 @@ def train_fold(fold, device):
     print(f"[FOLD {fold}] Seed: {fold_seed}")
 
     train_files, val_files = get_files_for_fold(fold)
-    _, _, _, train_loader, val_loader, _ = create_loaders(
+    _, _, train_loader, val_loader, _ = create_loaders(
         train_files, val_files, fold,
         check_batch=(fold == FOLDS_TO_RUN[0]),
     )
@@ -429,9 +429,9 @@ def train_fold(fold, device):
 # POST-TRAINING EVALUATION (per-case, validation)
 # ============================================================
 def evaluate_fold(fold, device):
-    train_files, val_files, test_files = get_files_for_fold(fold)
-    _, _, _, _, val_loader, test_loader = create_loaders(
-        train_files, val_files, test_files, fold)
+    train_files, val_files = get_files_for_fold(fold)
+    _, _, _, val_loader = create_loaders(
+        train_files, val_files, fold)
 
     output_dir = EXPERIMENT_DIR / f"fold_{fold}"
     model_path = output_dir / "best_metric_model.pth"

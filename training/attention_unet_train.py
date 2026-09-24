@@ -84,7 +84,7 @@ warnings.filterwarnings(
 #   DATA_DIR/
 #     images/   PANCREAS_XXXX.nii.gz
 #     labels/   PANCREAS_XXXX.nii.gz
-#     splits/   fold_1_train.txt  fold_1_val.txt  …  test.txt
+#     splits/   fold_1_train.txt  fold_1_val.txt
 
 DATA_DIR = Path("/path/to/preprocessed_dataset")   # <-- set this path
 
@@ -195,15 +195,12 @@ def load_split(split_file):
 def get_files_for_fold(fold):
     train_files = load_split(DATA_DIR / "splits" / f"fold_{fold}_train.txt")
     val_files   = load_split(DATA_DIR / "splits" / f"fold_{fold}_val.txt")
-    test_files  = load_split(DATA_DIR / "splits" / "test.txt")
     print("-" * 60)
     print(f"[FOLD {fold}] Data split:")
     print(f"  Train             : {len(train_files)}")
     print(f"  Internal val      : {len(val_files)}")
-    print(f"  Test              : {len(test_files)}")
     print("-" * 60)
-    return train_files, val_files, test_files
-
+    return train_files, val_files
 
 train_transforms = Compose([
     LoadImaged(keys=["image", "label"]),
@@ -250,12 +247,10 @@ val_transforms = Compose([
 ])
 
 
-def create_loaders(train_files, val_files, test_files, fold, check_batch=False):
+def create_loaders(train_files, val_files, fold, check_batch=False):
     train_ds = CacheDataset(data=train_files, transform=train_transforms,
                             cache_rate=1.0, num_workers=NUM_WORKERS)
     val_ds   = CacheDataset(data=val_files,   transform=val_transforms,
-                            cache_rate=1.0, num_workers=NUM_WORKERS)
-    test_ds  = CacheDataset(data=test_files,  transform=val_transforms,
                             cache_rate=1.0, num_workers=NUM_WORKERS)
 
     pin = torch.cuda.is_available()
@@ -265,9 +260,6 @@ def create_loaders(train_files, val_files, test_files, fold, check_batch=False):
     val_loader   = DataLoader(val_ds,   batch_size=1, shuffle=False,
                               num_workers=NUM_WORKERS, pin_memory=pin,
                               persistent_workers=True)
-    test_loader  = DataLoader(test_ds,  batch_size=1, shuffle=False,
-                              num_workers=NUM_WORKERS, pin_memory=pin,
-                              persistent_workers=True)
 
     if check_batch:
         batch = next(iter(train_loader))
@@ -275,7 +267,7 @@ def create_loaders(train_files, val_files, test_files, fold, check_batch=False):
               f"label: {batch['label'].shape}, "
               f"range: [{batch['image'].min():.3f}, {batch['image'].max():.3f}]")
 
-    return train_ds, val_ds, test_ds, train_loader, val_loader, test_loader
+    return train_ds, val_ds, train_loader, val_loader
 
 
 # ============================================================
@@ -462,9 +454,9 @@ def train_fold(fold, device):
         torch.cuda.manual_seed_all(fold_seed)
     print(f"[FOLD {fold}] Seed: {fold_seed}")
 
-    train_files, val_files, test_files = get_files_for_fold(fold)
-    _, _, _, train_loader, val_loader, _ = create_loaders(
-        train_files, val_files, test_files, fold,
+    train_files, val_files = get_files_for_fold(fold)
+    _, _, train_loader, val_loader, _ = create_loaders(
+        train_files, val_files, fold,
         check_batch=(fold == FOLDS_TO_RUN[0]),
     )
 

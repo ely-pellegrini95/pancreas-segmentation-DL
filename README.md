@@ -1,4 +1,5 @@
 # pancreas-segmentation-AttentionUnet-UNETR
+SIPAIM 2026; Lima, Peru
 > 3D pancreas CT segmentation — Attention U-Net vs UNETR, 5-fold cross-validation, NIH Pancreas-CT
 
 ![Python 3.10](https://img.shields.io/badge/Python-3.10-blue)
@@ -193,6 +194,6 @@ If you use this code, please cite:
                and Mu{\~n}oz, Leonel and Laguna, Juan-Pablo and Caprile, Paola
                and Besa, Cecilia and Chabert, Steren and Salas, Rodrigo},
 year = {2026},
-note = {Manuscript under review},
+note = {SIPAIM 2026 - Lima, Peru},
 }
 ```

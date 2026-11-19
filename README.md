@@ -10,9 +10,11 @@ SIPAIM 2026; Lima, Peru
 
 ## Work
 
-**Effects of Pre-processing and Threshold Calibration on Local versus Global Attention Architectures for Pancreas Parenchyma Segmentation**
+# Effects of Pre-processing and Threshold Calibration on Local versus Global Attention Architectures for Pancreas Parenchyma Segmentation
 
-Elizabeth Pellegrini · Sebastián Ibarra · Nicole Roldán · Leonel Muñoz · Juan-Pablo Laguna · Paola Caprile · Cecilia Besa · Steren Chabert · Rodrigo Salas
+**Accepted at SIPAIM 2026** — 22nd International Symposium on Medical Information Processing and Analysis, Lima, Peru (November 2026)
+
+Elizabeth Pellegrini · Sebástian Ibarra · Nicole Roldán · Leonel Muñoz · Juan-Pablo Laguna · Paola Caprile · Cecilia Besa · Steren Chabert · Rodrigo Salas
 
 ---
 
@@ -97,7 +99,8 @@ All experiments use fixed random seeds set in `torch`, `numpy`, `random`, and `m
 ---
 
 ## Preprocessing
-preprocess_with.py: includes image modifications; preprocess_without.py: standard normalization only without image modifications.
+- `preprocess_with.py`: body mask and cropping, percentile intensity clipping, multiplanar CLAHE, and [0,1] normalization.
+- `preprocess_without.py`: [0,1] normalization only (baseline).
 
 ## Training
 
@@ -171,7 +174,7 @@ Repeat with `--threshold 0.50` and `--threshold 0.90` to reproduce the three thr
 ## Main Results
 
 > **Note:** Results below are at a fixed threshold of 0.50.  
-> Threshold-sweep behavior is reported in the draft manuscript; the main held-out comparison is reported at the fixed reference threshold of 0.50.
+> Results at the fixed reference threshold of 0.50. Threshold-sweep behavior (0.10–0.90) is reported in the paper.
 
 | Model | DSC | Jaccard | Precision |
 |---|---|---|---|
@@ -187,13 +190,24 @@ Repeat with `--threshold 0.50` and `--threshold 0.90` to reproduce the three thr
 If you use this code, please cite:
 
 ```bibtex
-@misc{pellegrini2026pancreas,
-  title     = {Effects of Pre-processing and Threshold Calibration on Local
-               versus Global Attention Architectures for Pancreas Parenchyma Segmentation},
-  author    = {Pellegrini, Elizabeth and Ibarra, Sebasti{\'a}n and Rold{\'a}n, Nicole
-               and Mu{\~n}oz, Leonel and Laguna, Juan-Pablo and Caprile, Paola
-               and Besa, Cecilia and Chabert, Steren and Salas, Rodrigo},
-year = {2026},
-note = {SIPAIM 2026 - Lima, Peru},
+@inproceedings{pellegrini2026pancreas,
+  title     = {Effects of Pre-processing and Threshold Calibration on Local versus Global
+               Attention Architectures for Pancreas Parenchyma Segmentation},
+  author    = {Pellegrini, Elizabeth and Ibarra, Sebasti{\'a}n and Rold{\'a}n, Nicole and
+               Mu{\~n}oz, Leonel and Laguna, Juan-Pablo and Caprile, Paola and
+               Besa, Cecilia and Chabert, Steren and Salas, Rodrigo},
+  booktitle = {Proceedings of the International Symposium on Medical Information Processing and Analysis (SIPAIM)},
+  year      = {2026},
+  address   = {Lima, Peru},
+  note      = {In press}
 }
 ```
+
+## Acknowledgments
+This work was funded by ANID – Millennium Science Initiative Program ICN2021_004 (iHEALTH), FONDECYT ANID No. 1231268, 11260588 and 1242045, SIA-ANID Academy Installation Grant 85250224, and ANID Doctoral Scholarship No. 21260855.
+
+## Contact
+**Elizabeth Pellegrini** — PhD Student, Health Sciences and Engineering, Universidad de Valparaíso, Chile
+- Email: elizabeth.pellegrini@postgrado.uv.cl
+- LinkedIn: [linkedin.com/in/elizabeth-pellegrini-maldonado-a30033180]
+- ORCID: [https://orcid.org/0009-0005-2539-4434]
